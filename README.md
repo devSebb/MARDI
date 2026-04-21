@@ -43,6 +43,27 @@ On first launch:
 
 Your memories live as plain markdown files at `~/Documents/MARDI-Vault/`. You can open that folder in Obsidian directly — MARDI writes Obsidian-compatible YAML frontmatter. MARDI-internal state lives in the hidden `.mardi/` subfolder.
 
+## What works in v0
+
+- Hot-corner summon (default top-right, configurable)
+- Robot character with idle / summoned / thinking / success / error / selectMode / sleeping moods
+- Capture: URL (Safari/Chrome/Arc/Brave/Edge), plain text snippet, SSH, AI prompt, email signature, canned reply, free-form note
+- Clipboard auto-prefill for text captures
+- Auto title + tags + summary via Claude or OpenRouter
+- Local semantic + keyword search (hybrid, reciprocal rank fusion)
+- Obsidian-style main dashboard with sidebar, memory list, detail pane
+- Per-app recall (focus Mail.app → signatures bubble up; Terminal → SSH; browsers → URL, etc.)
+- Global quick search overlay (⌘⇧M) that copies the top result on Enter
+- Settings UI for provider/model switching, API keys, vault path, hot corner, permission deep-links
+
+## What's deferred to v0.5+
+
+- Select Mode (drag-a-box → OCR) — UI is stubbed on the monster but disabled
+- Graph view + Timeline view — placeholders are shown; real implementations coming
+- Launch at login toggle — stored but not yet wired to SMAppService
+- Rive-style richer robot animations — currently procedural in SwiftUI Canvas
+- Firefox URL capture — documented-as-unsupported
+
 ## Keyboard shortcuts
 
 | | |
@@ -55,7 +76,7 @@ Your memories live as plain markdown files at `~/Documents/MARDI-Vault/`. You ca
 
 ## Architecture
 
-See [the v0 plan](./docs/plan.md) for the full architecture write-up. Short version:
+Short version:
 
 - Native Swift 6 + SwiftUI.
 - Single SQLite DB (`~/Documents/MARDI-Vault/.mardi/mardi.sqlite`) with FTS5 + `sqlite-vec` for vectors + metadata tables.
@@ -72,3 +93,17 @@ See [the v0 plan](./docs/plan.md) for the full architecture write-up. Short vers
 | Notifications | First launch | "Saved ✓" toasts |
 
 **Accessibility** and **Input Monitoring** are *not* requested. Hot corner detection uses polled mouse location, which doesn't need either.
+
+## Troubleshooting
+
+**The robot never appears when I reach the corner.**
+Open Settings → General and confirm the hot corner matches where you're pointing. The default is top-right; the dwell delay is 400ms. Try clicking the MARDI menu-bar icon → "Summon Mardi" to verify the panel renders at all.
+
+**Saving a URL says "MARDI can't reach the browser".**
+macOS asks for Automation permission per-browser the first time. If you denied it, open System Settings → Privacy & Security → Automation, find MARDI, and flip the switch for that browser.
+
+**Auto-tagging isn't working.**
+Open Settings → Model → Test connection. The app still saves even if the LLM fails (it uses a deterministic fallback title), so missing tags / summaries usually means the API key is wrong or the model slug doesn't match your account's access.
+
+**Want to look at the actual markdown files?**
+`~/Documents/MARDI-Vault/` — each type has its own folder. Open it in Obsidian directly; the frontmatter is Obsidian-compatible.
