@@ -12,6 +12,8 @@ final class MonsterViewModel: ObservableObject {
     @Published var searchText: String = ""
     @Published var searchResults: [Memory] = []
     @Published var isSearching: Bool = false
+    @Published var drawerExpanded: Bool = false
+    @Published var drawerType: MemoryType? = nil
 
     unowned let env: AppEnvironment
 
@@ -41,11 +43,20 @@ final class MonsterViewModel: ObservableObject {
         mode = .root
         searchText = ""
         searchResults = []
+        drawerExpanded = false
+        drawerType = nil
+    }
+
+    func cancelCapture() {
+        mode = .root
+        drawerExpanded = false
+        drawerType = nil
     }
 
     // MARK: - Capture
 
     func beginCapture(type: MemoryType) {
+        drawerType = type
         switch type {
         case .url:
             beginURLCapture()
@@ -58,6 +69,19 @@ final class MonsterViewModel: ObservableObject {
             }
             pre.sourceApp = env.activeAppWatcher.frontmostBundleID
             mode = .capture(type: type, prefill: pre)
+        }
+    }
+
+    func toggleDrawer(for type: MemoryType?) {
+        guard let type else {
+            drawerExpanded = false
+            return
+        }
+        if drawerExpanded && drawerType == type {
+            drawerExpanded = false
+        } else {
+            drawerType = type
+            drawerExpanded = true
         }
     }
 
@@ -80,17 +104,18 @@ final class MonsterViewModel: ObservableObject {
         }
     }
 
-    func submitCapture(title: String, body: String, tagsRaw: String, type: MemoryType, prefill: CapturePrefill?) {
+    func submitCapture(title: String, body: String, tagsRaw: String, folder: String, type: MemoryType, prefill: CapturePrefill?) {
         let rawTags = tagsRaw
             .split(whereSeparator: { $0 == "," || $0 == " " })
             .map { String($0).trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
-        let memory = Memory(
-            type: type,
+        let capture = RawCapture(
+            requestedType: type,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             body: body,
             tags: rawTags,
+            folder: folder.trimmingCharacters(in: .whitespacesAndNewlines),
             sourceApp: prefill?.sourceApp,
             sourceURL: prefill?.sourceURL ?? (type == .url ? body : nil)
         )
@@ -98,7 +123,7 @@ final class MonsterViewModel: ObservableObject {
         mood = .thinking
         savingMessage = MardiVoice.thinking
         Task { @MainActor in
-            if let saved = await env.save(memory) {
+            if let saved = await env.save(capture) {
                 mood = .success
                 savingMessage = MardiVoice.savedTo(saved.type)
                 try? await Task.sleep(nanoseconds: 900_000_000)
@@ -118,6 +143,8 @@ final class MonsterViewModel: ObservableObject {
         mode = .search
         mood = .listening
         searchText = ""
+        drawerExpanded = false
+        drawerType = nil
         Task { await runSearch() }
     }
 

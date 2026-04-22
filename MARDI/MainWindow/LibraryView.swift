@@ -1,94 +1,220 @@
 import SwiftUI
+import AppKit
 
 struct LibraryView: View {
     @EnvironmentObject var env: AppEnvironment
     @Binding var typeFilter: MemoryType?
+    @Binding var folderFilter: String?
     @Binding var searchText: String
     @Binding var selected: Memory?
     let memories: [Memory]
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(typeFilter: $typeFilter)
+            SidebarView(typeFilter: $typeFilter, folderFilter: $folderFilter)
         } content: {
             VStack(spacing: 0) {
                 SearchBar(text: $searchText)
-                Divider().background(Palette.border)
+                if let folderFilter {
+                    BrailleDivider(color: Palette.neonOrange.opacity(0.4)).padding(.horizontal, 4)
+                    FolderCollectionHeader(folder: folderFilter, itemCount: memories.count) {
+                        Task { await renameFolder(folderFilter) }
+                    } onClear: {
+                        self.folderFilter = nil
+                    }
+                }
+                BrailleDivider(color: Palette.border).padding(.horizontal, 4)
                 if memories.isEmpty {
                     emptyState
                 } else {
                     MemoryListView(memories: memories, selected: $selected)
                 }
             }
-            .background(Palette.charcoal)
+            .background(
+                ZStack {
+                    Palette.charcoal
+                    BrailleField(color: Palette.brailleDim, opacity: 0.25, fontSize: 12, density: 0.2)
+                }
+            )
         } detail: {
             if let m = selected {
                 MemoryDetailView(memory: m)
                     .id(m.id)
             } else {
-                VStack(spacing: 10) {
-                    MardiRobotView(mood: .idle, size: 80)
+                VStack(spacing: 14) {
+                    MardiFishView(mood: .idle, size: 112)
+                    BrailleLabel(
+                        text: env.recentMemories.isEmpty ? "vault // empty" : "select memory",
+                        color: Palette.neonCyan,
+                        size: 10
+                    )
                     Text(env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
                         .monoFont(11).foregroundStyle(Palette.textSecondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Palette.charcoal)
+                .background(
+                    ZStack {
+                        Palette.charcoal
+                        BrailleField(color: Palette.brailleDim, opacity: 0.28, fontSize: 14, density: 0.18)
+                    }
+                )
             }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
+            Text("⠿⠿⠿")
+                .pixelFont(16)
+                .foregroundStyle(Palette.neonMagenta.opacity(0.45))
             Text(searchText.isEmpty ? MardiVoice.emptyVault : "No matches.")
-                .monoFont(12).foregroundStyle(Palette.textMuted)
+                .monoFont(11)
+                .foregroundStyle(Palette.textMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func renameFolder(_ current: String) async {
+        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let panel = NSAlert()
+        panel.messageText = "Rename Folder"
+        panel.informativeText = "Update the folder name for all memories in this collection."
+        let field = NSTextField(string: trimmed)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        panel.accessoryView = field
+        panel.addButton(withTitle: "Rename")
+        panel.addButton(withTitle: "Cancel")
+        let response = panel.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+        let next = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !next.isEmpty, next != trimmed else { return }
+        let renamed = await env.renameFolder(from: trimmed, to: next)
+        if renamed {
+            folderFilter = next
+        }
     }
 }
 
 struct SidebarView: View {
     @EnvironmentObject var env: AppEnvironment
     @Binding var typeFilter: MemoryType?
+    @Binding var folderFilter: String?
 
     var body: some View {
-        List(selection: $typeFilter) {
-            Section("LIBRARY") {
+        List {
+            Section {
                 Button {
                     typeFilter = nil
+                    folderFilter = nil
                 } label: {
-                    HStack {
-                        Image(systemName: "tray.full")
-                        Text("All")
-                        Spacer()
-                        Text("\(env.countsByType.values.reduce(0, +))")
-                            .monoFont(10)
-                            .foregroundStyle(Palette.textMuted)
-                    }
+                    SidebarRow(
+                        glyph: "⣿",
+                        label: "All",
+                        count: env.countsByType.values.reduce(0, +),
+                        isActive: typeFilter == nil && folderFilter == nil,
+                        tint: Palette.neonCyan
+                    )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(typeFilter == nil ? Palette.phosphor : Palette.textPrimary)
 
-                ForEach(MemoryType.allCases, id: \.self) { t in
+                ForEach(MemoryType.allCases.filter { $0 != .select }, id: \.self) { t in
                     Button {
                         typeFilter = t
+                        folderFilter = nil
                     } label: {
-                        HStack {
-                            Image(systemName: t.symbol).foregroundStyle(t.accent)
-                            Text(t.pluralName)
-                            Spacer()
-                            Text("\(env.countsByType[t] ?? 0)")
-                                .monoFont(10)
-                                .foregroundStyle(Palette.textMuted)
-                        }
+                        SidebarRow(
+                            glyph: t.glyph,
+                            label: t.pluralName,
+                            count: env.countsByType[t] ?? 0,
+                            isActive: typeFilter == t,
+                            tint: t.accent
+                        )
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(typeFilter == t ? Palette.phosphor : Palette.textPrimary)
+                }
+            } header: {
+                BrailleLabel(text: "Library", color: Palette.neonMagenta, size: 10)
+                    .padding(.bottom, 4)
+            }
+
+            if !env.countsByFolder.isEmpty {
+                Section {
+                    ForEach(sortedFolders, id: \.self) { folder in
+                        Button {
+                            folderFilter = folder
+                            typeFilter = nil
+                        } label: {
+                            SidebarRow(
+                                glyph: "⡶",
+                                label: folder,
+                                count: env.countsByFolder[folder] ?? 0,
+                                isActive: folderFilter == folder,
+                                tint: Palette.neonOrange
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    BrailleLabel(text: "Folders", color: Palette.neonOrange, size: 10)
+                        .padding(.bottom, 4)
                 }
             }
         }
         .listStyle(.sidebar)
-        .frame(minWidth: 200)
-        .background(Palette.panelSlate)
+        .scrollContentBackground(.hidden)
+        .frame(minWidth: 210)
+        .background(
+            ZStack {
+                Palette.panelSlate
+                BrailleField(color: Palette.brailleDim, opacity: 0.5, fontSize: 11, density: 0.35)
+            }
+        )
+    }
+
+    private var sortedFolders: [String] {
+        env.countsByFolder.keys.sorted { lhs, rhs in
+            let lc = env.countsByFolder[lhs] ?? 0
+            let rc = env.countsByFolder[rhs] ?? 0
+            if lc == rc { return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending }
+            return lc > rc
+        }
+    }
+}
+
+private struct SidebarRow: View {
+    let glyph: String
+    let label: String
+    let count: Int
+    let isActive: Bool
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(glyph)
+                .monoFont(11, weight: .bold)
+                .foregroundStyle(isActive ? tint : tint.opacity(0.55))
+                .frame(width: 14)
+            Text(label.uppercased())
+                .monoFont(10, weight: isActive ? .bold : .regular)
+                .tracking(1.2)
+                .foregroundStyle(isActive ? Palette.textPrimary : Palette.textSecondary)
+            Spacer()
+            Text("\(count)")
+                .monoFont(9)
+                .foregroundStyle(isActive ? tint : Palette.textMuted)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(isActive ? tint.opacity(0.10) : Color.clear)
+        .overlay(alignment: .leading) {
+            if isActive {
+                Rectangle()
+                    .fill(tint)
+                    .frame(width: 2)
+                    .shadow(color: tint.opacity(0.55), radius: 1.5)
+            }
+        }
     }
 }
 
@@ -96,21 +222,83 @@ private struct SearchBar: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Palette.textSecondary)
-            TextField("", text: $text, prompt: Text("Search memories…").foregroundStyle(Palette.textMuted))
+        HStack(spacing: 10) {
+            Text("⠿")
+                .monoFont(11, weight: .bold)
+                .foregroundStyle(Palette.neonCyan)
+            TextField("", text: $text, prompt: Text("search memories…").foregroundStyle(Palette.textMuted))
                 .textFieldStyle(.plain)
                 .monoFont(12)
                 .foregroundStyle(Palette.textPrimary)
             if !text.isEmpty {
                 Button { text = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.textMuted)
+                    Text("⡏⠯")
+                        .monoFont(10, weight: .bold)
+                        .foregroundStyle(Palette.textMuted)
                 }.buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Palette.panelSlate)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Palette.border).frame(height: 1)
+        }
+    }
+}
+
+private struct FolderCollectionHeader: View {
+    let folder: String
+    let itemCount: Int
+    var onRename: () -> Void
+    var onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    Text("⡶")
+                        .monoFont(11, weight: .bold)
+                        .foregroundStyle(Palette.neonOrange)
+                    Text(folder.uppercased())
+                        .monoFont(12, weight: .bold)
+                        .tracking(1.5)
+                        .foregroundStyle(Palette.textPrimary)
+                }
+                Text("\(itemCount) item\(itemCount == 1 ? "" : "s") · collection")
+                    .monoFont(9)
+                    .foregroundStyle(Palette.textMuted)
+            }
+
+            Spacer()
+
+            Button(action: onRename) {
+                HStack(spacing: 4) {
+                    Text("⠶").monoFont(9, weight: .bold)
+                    Text("RENAME").monoFont(9, weight: .bold).tracking(1.2)
+                }
+                .foregroundStyle(Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onClear) {
+                HStack(spacing: 4) {
+                    Text("⠄").monoFont(9, weight: .bold)
+                    Text("ALL").monoFont(9, weight: .bold).tracking(1.2)
+                }
+                .foregroundStyle(Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [Palette.neonOrange.opacity(0.14), Palette.panelSlate],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 }
 
@@ -123,37 +311,62 @@ struct MemoryListView: View {
             ForEach(memories, id: \.id) { m in
                 MemoryRow(memory: m)
                     .tag(m)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
         .listStyle(.plain)
-        .background(Palette.charcoal)
+        .scrollContentBackground(.hidden)
+        .background(Color.clear)
     }
 }
 
 private struct MemoryRow: View {
+    @EnvironmentObject var env: AppEnvironment
     let memory: Memory
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: memory.type.symbol)
-                .foregroundStyle(memory.type.accent)
-                .frame(width: 16)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(memory.title).monoFont(12, weight: .bold).lineLimit(1)
+        HStack(alignment: .top, spacing: 12) {
+            if memory.type == .url, let thumbnail = memory.thumbnailPath {
+                VaultThumbnailView(relativePath: thumbnail)
+                    .frame(width: 76, height: 54)
+                    .clipped()
+                    .pixelBorder(Palette.neonViolet.opacity(0.6), width: 1.5)
+            } else if memory.type == .url {
+                URLRowFallback(domain: domain)
+            } else {
+                VStack(spacing: 2) {
+                    Text(memory.type.glyph)
+                        .monoFont(13, weight: .bold)
+                        .foregroundStyle(memory.type.accent)
+                    Text(memory.type.shortCode)
+                        .monoFont(8, weight: .bold)
+                        .tracking(0.5)
+                        .foregroundStyle(memory.type.accent.opacity(0.7))
+                }
+                .frame(width: 36, height: 48)
+                .background(Palette.panelSlateHi)
+                .pixelBorder(memory.type.accent.opacity(0.45), width: 1)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(memory.title)
+                    .monoFont(12, weight: .bold)
+                    .lineLimit(1)
                     .foregroundStyle(Palette.textPrimary)
                 if let s = memory.summary {
                     Text(s).bodyFont(11).lineLimit(2)
                         .foregroundStyle(Palette.textSecondary)
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
+                    if memory.type == .url, let domain {
+                        pixelChip(text: domain, tint: Palette.neonViolet)
+                    }
+                    if let folder = memory.folder {
+                        pixelChip(text: folder, tint: Palette.neonOrange)
+                    }
                     ForEach(memory.tags.prefix(4), id: \.self) { tag in
-                        Text(tag).monoFont(9)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(
-                                Capsule().fill(Palette.panelSlateHi)
-                            )
+                        Text("#\(tag)")
+                            .monoFont(9)
                             .foregroundStyle(Palette.textMuted)
                     }
                     Spacer()
@@ -163,6 +376,81 @@ private struct MemoryRow: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private func pixelChip(text: String, tint: Color) -> some View {
+        Text(text.uppercased())
+            .monoFont(8, weight: .bold)
+            .tracking(1.0)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.14))
+            .pixelBorder(tint.opacity(0.55), width: 1)
+            .foregroundStyle(tint)
+    }
+
+    private var domain: String? {
+        guard let raw = memory.sourceURL ?? URL(string: memory.body)?.absoluteString,
+              let host = URL(string: raw)?.host else { return nil }
+        return host.replacingOccurrences(of: "www.", with: "")
+    }
+}
+
+private struct URLRowFallback: View {
+    let domain: String?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Palette.neonViolet.opacity(0.24), Palette.panelSlateHi],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .pixelBorder(Palette.neonViolet.opacity(0.5), width: 1)
+
+            Text((domain ?? "link").uppercased())
+                .monoFont(8, weight: .bold)
+                .tracking(1.0)
+                .foregroundStyle(Palette.neonViolet.opacity(0.5))
+                .padding(6)
+        }
+        .frame(width: 76, height: 54)
+    }
+}
+
+// MARK: - MemoryType pixel helpers
+
+extension MemoryType {
+    /// Braille glyph used everywhere instead of SF Symbols for type badges.
+    var glyph: String {
+        switch self {
+        case .url: "⢸"
+        case .snippet: "⠿"
+        case .ssh: "⡶"
+        case .prompt: "⣿"
+        case .signature: "⠶"
+        case .reply: "⢰"
+        case .note: "⠉"
+        case .select: "⡟"
+        }
+    }
+
+    /// Three-letter uppercase shortcode for pixel type badges.
+    var shortCode: String {
+        switch self {
+        case .url: "URL"
+        case .snippet: "SNP"
+        case .ssh: "SSH"
+        case .prompt: "PRM"
+        case .signature: "SIG"
+        case .reply: "RPY"
+        case .note: "NOT"
+        case .select: "SEL"
+        }
     }
 }

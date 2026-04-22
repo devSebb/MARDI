@@ -54,29 +54,19 @@ struct MARDIApp: App {
 /// SwiftUI scene graph so views can use @EnvironmentObject cleanly.
 struct DashboardContainer: View {
     @EnvironmentObject var delegate: AppDelegate
-    @State private var ready: Bool = false
 
     var body: some View {
-        Group {
-            if let env = delegate.env {
-                MainWindowView()
-                    .environmentObject(env)
-            } else {
-                VStack(spacing: 12) {
-                    MardiRobotView(mood: .thinking, size: 96)
-                    Text("Booting Mardi…").monoFont(11).foregroundStyle(Palette.textSecondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Palette.charcoal)
-                .colorScheme(.dark)
+        if let env = delegate.env {
+            MainWindowView()
+                .environmentObject(env)
+        } else {
+            VStack(spacing: 12) {
+                MardiFishView(mood: .thinking, size: 128)
+                Text("Booting Mardi…").monoFont(11).foregroundStyle(Palette.textSecondary)
             }
-        }
-        .task {
-            // Force a tick so @EnvironmentObject observations start once env arrives.
-            while delegate.env == nil {
-                try? await Task.sleep(nanoseconds: 120_000_000)
-            }
-            ready = true
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Palette.charcoal)
+            .colorScheme(.dark)
         }
     }
 }
