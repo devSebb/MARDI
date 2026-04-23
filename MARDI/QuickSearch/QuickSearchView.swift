@@ -12,7 +12,9 @@ struct QuickSearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Palette.phosphor)
+                Text("⠿")
+                    .monoFont(18, weight: .bold)
+                    .foregroundStyle(Palette.pink)
                 TextField("", text: $text, prompt: Text("Ask Mardi…").foregroundStyle(Palette.textMuted))
                     .textFieldStyle(.plain)
                     .monoFont(16)
@@ -26,7 +28,7 @@ struct QuickSearchView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
 
-            Divider().background(Palette.border)
+            Divider().background(Palette.rule)
 
             if !results.isEmpty {
                 ScrollView {
@@ -49,15 +51,16 @@ struct QuickSearchView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 2)
                 .fill(Palette.panelSlate)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.border, lineWidth: 1.5))
+                .brailleField(opacity: 0.04)
+                .pixelBorder(color: Palette.ruleHi, glow: Palette.pink, cornerRadius: 2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 2)
                 .stroke(.clear)
                 .scanlines(opacity: 0.03, spacing: 3)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 2))
                 .allowsHitTesting(false)
         )
         .frame(width: 560)
@@ -103,25 +106,27 @@ private struct Row: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 10) {
-                Image(systemName: memory.type.symbol)
+                Text(memory.type.brailleGlyph)
+                    .monoFont(15, weight: .bold)
                     .foregroundStyle(memory.type.accent)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(memory.title).monoFont(12, weight: .bold)
-                        .foregroundStyle(isSelected ? Palette.phosphor : Palette.textPrimary)
+                        .foregroundStyle(isSelected ? Palette.pink : Palette.textPrimary)
                         .lineLimit(1)
                     if let s = memory.summary {
                         Text(s).bodyFont(10).lineLimit(1).foregroundStyle(Palette.textMuted)
                     }
                 }
                 Spacer()
-                Text(memory.type.displayName).monoFont(9).foregroundStyle(Palette.textMuted)
+                Text(memory.type.displayName.uppercased()).monoFont(9).foregroundStyle(memory.type.accent.opacity(0.8))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Palette.phosphor.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(isSelected ? Palette.pink.opacity(0.12) : Color.clear)
+                    .pixelBorder(color: isSelected ? Palette.pink.opacity(0.7) : .clear, cornerRadius: 2)
             )
         }
         .buttonStyle(.plain)

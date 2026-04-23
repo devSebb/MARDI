@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// CRT-terminal-style speech bubble with typewriter text reveal. Tail points at the robot.
+/// Pixel-terminal speech bubble with typewriter text reveal. Tail points at Mardi.
 struct SpeechBubbleView: View {
     let text: String
     var tailSide: Edge = .leading   // tail on the left side, pointing at robot
@@ -24,15 +24,15 @@ struct SpeechBubbleView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text("> ")
+                    Text("› ")
                         .monoFont(12, weight: .bold)
-                        .foregroundStyle(Palette.phosphorDim)
+                        .foregroundStyle(Palette.pink)
                     Text(displayed)
                         .monoFont(12)
-                        .foregroundStyle(Palette.phosphor)
+                        .foregroundStyle(Palette.bone)
                     if blink {
                         Rectangle()
-                            .fill(Palette.phosphor)
+                            .fill(Palette.pink)
                             .frame(width: 7, height: 12)
                             .opacity(isRevealing ? 0.9 : (blink ? 0.9 : 0.2))
                     }
@@ -41,22 +41,20 @@ struct SpeechBubbleView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Palette.bubbleBg)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Palette.phosphorDim, lineWidth: 1.5)
-                    )
+                    .brailleField(opacity: 0.04)
+                    .pixelBorder(color: Palette.pinkDim, glow: Palette.pink, cornerRadius: 2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 2)
                     .stroke(.clear)
-                    .scanlines(opacity: 0.08, spacing: 2)
+                    .scanlines(opacity: 0.03, spacing: 2)
                     .mask(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 2)
                     )
             )
-            .crtGlow(color: Palette.phosphor, radius: 5, intensity: 0.18)
+            .crtGlow(color: Palette.pink, radius: 5, intensity: 0.12)
 
             if tailSide == .trailing {
                 tailView
@@ -84,7 +82,7 @@ struct SpeechBubbleView: View {
             .fill(Palette.bubbleBg)
             .overlay(
                 Triangle(pointing: tailSide == .leading ? .left : .right)
-                    .stroke(Palette.phosphorDim, lineWidth: 1.5)
+                    .stroke(Palette.pinkDim, lineWidth: 1.5)
             )
             .frame(width: 10, height: 14)
     }

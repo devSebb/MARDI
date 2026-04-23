@@ -36,7 +36,8 @@ struct MARDIApp: App {
             MenuBarContent()
                 .environmentObject(appDelegate)
         } label: {
-            Image(systemName: "sparkles.square.filled.on.square")
+            Text("⣿")
+                .monoFont(13, weight: .bold)
         }
         .menuBarExtraStyle(.menu)
 

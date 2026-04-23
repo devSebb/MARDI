@@ -54,16 +54,4 @@ enum MemoryType: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var emoji: String {
-        switch self {
-        case .url: "🔗"
-        case .snippet: "⌨"
-        case .ssh: "💻"
-        case .prompt: "🤖"
-        case .signature: "📧"
-        case .reply: "↩"
-        case .note: "✎"
-        case .select: "✂"
-        }
-    }
 }

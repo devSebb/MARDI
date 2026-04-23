@@ -27,7 +27,7 @@ struct LibraryView: View {
                     .id(m.id)
             } else {
                 VStack(spacing: 10) {
-                    MardiRobotView(mood: .idle, size: 80)
+                    MardiRobotView(mood: .idle, size: 96)
                     Text(env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
                         .monoFont(11).foregroundStyle(Palette.textSecondary)
                 }
@@ -57,7 +57,8 @@ struct SidebarView: View {
                     typeFilter = nil
                 } label: {
                     HStack {
-                        Image(systemName: "tray.full")
+                        Text("⣿")
+                            .monoFont(12, weight: .bold)
                         Text("All")
                         Spacer()
                         Text("\(env.countsByType.values.reduce(0, +))")
@@ -66,14 +67,16 @@ struct SidebarView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(typeFilter == nil ? Palette.phosphor : Palette.textPrimary)
+                    .foregroundStyle(typeFilter == nil ? Palette.pink : Palette.textPrimary)
 
                 ForEach(MemoryType.allCases, id: \.self) { t in
                     Button {
                         typeFilter = t
                     } label: {
                         HStack {
-                            Image(systemName: t.symbol).foregroundStyle(t.accent)
+                            Text(t.brailleGlyph)
+                                .monoFont(12, weight: .bold)
+                                .foregroundStyle(t.accent)
                             Text(t.pluralName)
                             Spacer()
                             Text("\(env.countsByType[t] ?? 0)")
@@ -82,7 +85,7 @@ struct SidebarView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(typeFilter == t ? Palette.phosphor : Palette.textPrimary)
+                    .foregroundStyle(typeFilter == t ? Palette.pink : Palette.textPrimary)
                 }
             }
         }
@@ -97,7 +100,7 @@ private struct SearchBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Palette.textSecondary)
+            Text("⠿").monoFont(12, weight: .bold).foregroundStyle(Palette.pink)
             TextField("", text: $text, prompt: Text("Search memories…").foregroundStyle(Palette.textMuted))
                 .textFieldStyle(.plain)
                 .monoFont(12)
@@ -135,7 +138,8 @@ private struct MemoryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: memory.type.symbol)
+            Text(memory.type.brailleGlyph)
+                .monoFont(14, weight: .bold)
                 .foregroundStyle(memory.type.accent)
                 .frame(width: 16)
                 .padding(.top, 2)

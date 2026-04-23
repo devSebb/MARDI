@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     func showMonster() {
         guard let env, let vm = monsterVM else { return }
-        let size = CGSize(width: 360, height: 380)
+        let size = CGSize(width: 420, height: 500)
 
         let view = MonsterView(
             vm: vm,

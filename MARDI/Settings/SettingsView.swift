@@ -25,6 +25,8 @@ struct SettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 560, height: 420)
+        .background(Palette.ink)
+        .colorScheme(.dark)
         .onAppear {
             claudeKey = settings.claudeAPIKey
             openRouterKey = settings.openRouterAPIKey
@@ -150,7 +152,10 @@ struct SettingsView: View {
 
     private var aboutTab: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("MARDI").monoFont(24, weight: .bold).foregroundStyle(Palette.phosphor)
+            HStack(spacing: 8) {
+                Text("⣿⣿").monoFont(18, weight: .bold).foregroundStyle(Palette.pink)
+                Text("[MARDI]").monoFont(24, weight: .bold).foregroundStyle(Palette.bone)
+            }
             Text("v0.1.0 · retro-future second brain").monoFont(11).foregroundStyle(Palette.textMuted)
             Divider().padding(.vertical, 6)
             Text("Embedding model: NLEmbedding.sentenceEmbedding (Apple NaturalLanguage)")
@@ -177,7 +182,7 @@ struct SettingsView: View {
             Button("Open System Settings", action: open)
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Palette.panelSlateHi))
+        .background(RoundedRectangle(cornerRadius: 2).fill(Palette.panelSlateHi).pixelBorder(color: Palette.ruleHi, cornerRadius: 2))
     }
 
     private func openSettings(_ urlString: String) {

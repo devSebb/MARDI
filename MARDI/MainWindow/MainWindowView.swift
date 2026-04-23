@@ -49,6 +49,7 @@ struct MainWindowView: View {
         }
         .frame(minWidth: 960, minHeight: 620)
         .background(Palette.charcoal)
+        .brailleField(opacity: 0.025)
         .colorScheme(.dark)
         .task(id: "\(typeFilter?.rawValue ?? "all")-\(searchText)") {
             await reload()
@@ -60,7 +61,10 @@ struct MainWindowView: View {
 
     private var tabBar: some View {
         HStack(spacing: 0) {
-            Text("MARDI").monoFont(14, weight: .bold).foregroundStyle(Palette.phosphor)
+            HStack(spacing: 8) {
+                Text("⣿⣿").monoFont(12, weight: .bold).foregroundStyle(Palette.pink)
+                Text("[MARDI]").monoFont(13, weight: .bold).foregroundStyle(Palette.bone)
+            }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
 
@@ -72,10 +76,10 @@ struct MainWindowView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .foregroundStyle(tab == t ? Palette.phosphor : Palette.textSecondary)
+                    .foregroundStyle(tab == t ? Palette.pink : Palette.textSecondary)
                     .background(
                         Rectangle()
-                            .fill(tab == t ? Palette.phosphor.opacity(0.08) : Color.clear)
+                            .fill(tab == t ? Palette.pink.opacity(0.10) : Color.clear)
                     )
                 }
                 .buttonStyle(.plain)
@@ -100,6 +104,7 @@ struct MainWindowView: View {
         }
         .frame(height: 40)
         .background(Palette.panelSlate)
+        .pixelBorder(color: Palette.rule, cornerRadius: 0)
     }
 
     private func reload() async {
@@ -118,7 +123,7 @@ struct MainWindowView: View {
 private struct GraphPlaceholderView: View {
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "circle.grid.cross").font(.system(size: 40)).foregroundStyle(Palette.phosphorDim)
+            Text("⣿⣾⣽⣯").monoFont(30, weight: .bold).foregroundStyle(Palette.pinkDim)
             Text("Graph view coming in v0.5").monoFont(12).foregroundStyle(Palette.textSecondary)
             Text("Force-directed layout of your memories, edges by shared tags + embedding similarity.")
                 .monoFont(10).foregroundStyle(Palette.textMuted).multilineTextAlignment(.center)
@@ -132,7 +137,7 @@ private struct GraphPlaceholderView: View {
 private struct TimelinePlaceholderView: View {
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "calendar").font(.system(size: 40)).foregroundStyle(Palette.phosphorDim)
+            Text("⠒⠒⠒⠒").monoFont(30, weight: .bold).foregroundStyle(Palette.pinkDim)
             Text("Timeline coming in v0.5").monoFont(12).foregroundStyle(Palette.textSecondary)
             Text("GitHub-style contribution heatmap of captures per day.")
                 .monoFont(10).foregroundStyle(Palette.textMuted).multilineTextAlignment(.center)

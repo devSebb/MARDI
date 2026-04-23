@@ -1,24 +1,44 @@
 import SwiftUI
 
-/// MARDI's retro-future palette. Dark by default.
+/// MARDI's landing-page palette. Dark, bone-on-ink, with pink as the primary
+/// active color and cyan/violet/gold as secondary type accents.
 enum Palette {
-    static let charcoal = Color(hex: 0x0F1115)
-    static let panelSlate = Color(hex: 0x1A1D23)
-    static let panelSlateHi = Color(hex: 0x23272F)
-    static let bubbleBg = Color(hex: 0x0E0F10)
-    static let border = Color(hex: 0x2C313A)
-    static let borderBright = Color(hex: 0x3B4250)
+    static let ink = Color(hex: 0x08070B)
+    static let ink2 = Color(hex: 0x0D0B13)
+    static let ink3 = Color(hex: 0x15121D)
+    static let bone = Color(hex: 0xF3F1EC)
+    static let bone2 = Color(hex: 0xB7B3AA)
+    static let bone3 = Color(hex: 0x6B6860)
+    static let bone4 = Color(hex: 0x3A3832)
+    static let rule = Color(hex: 0x242029)
+    static let ruleHi = Color(hex: 0x3A3444)
 
-    static let textPrimary = Color(hex: 0xE6E8EC)
-    static let textSecondary = Color(hex: 0x9AA1AB)
-    static let textMuted = Color(hex: 0x5C6370)
+    static let pink = Color(hex: 0xFF2ECC)
+    static let pinkDim = Color(hex: 0xB0208A)
+    static let cyan = Color(hex: 0x3EF0FF)
+    static let violet = Color(hex: 0xB37BFF)
+    static let gold = Color(hex: 0xFFB63D)
+    static let orange = Color(hex: 0xFF7A18)
+    static let red = Color(hex: 0xFF3355)
 
-    static let phosphor = Color(hex: 0x8CF59A)        // accent / success
-    static let phosphorDim = Color(hex: 0x4F8A5A)
-    static let amber = Color(hex: 0xF5C26B)            // warnings
-    static let magenta = Color(hex: 0xFF77AA)          // "magic" moments
-    static let sky = Color(hex: 0x7DC7FF)              // links, info
-    static let rust = Color(hex: 0xE58A6B)             // errors
+    // Compatibility aliases for the existing SwiftUI surfaces.
+    static let charcoal = ink
+    static let panelSlate = ink2
+    static let panelSlateHi = ink3
+    static let bubbleBg = ink
+    static let border = rule
+    static let borderBright = ruleHi
+
+    static let textPrimary = bone
+    static let textSecondary = bone2
+    static let textMuted = bone3
+
+    static let phosphor = pink
+    static let phosphorDim = pinkDim
+    static let amber = gold
+    static let magenta = violet
+    static let sky = cyan
+    static let rust = red
 }
 
 extension Color {
@@ -33,14 +53,27 @@ extension Color {
 extension MemoryType {
     var accent: Color {
         switch self {
-        case .url: Palette.sky
-        case .snippet: Palette.phosphor
-        case .ssh: Palette.amber
-        case .prompt: Palette.magenta
-        case .signature: Palette.sky
-        case .reply: Palette.phosphor
+        case .url: Palette.orange
+        case .snippet: Palette.cyan
+        case .ssh: Palette.gold
+        case .prompt: Palette.pink
+        case .signature: Palette.violet
+        case .reply: Palette.cyan
         case .note: Palette.textPrimary
-        case .select: Palette.magenta
+        case .select: Palette.gold
+        }
+    }
+
+    var brailleGlyph: String {
+        switch self {
+        case .url: "⣷"
+        case .snippet: "⣶"
+        case .ssh: "⣯"
+        case .prompt: "⣻"
+        case .signature: "⣽"
+        case .reply: "⣟"
+        case .note: "⡿"
+        case .select: "⠿"
         }
     }
 }

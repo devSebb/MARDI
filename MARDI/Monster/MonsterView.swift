@@ -10,67 +10,105 @@ struct MonsterView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
+                panelHeader
+
                 // Top row: robot + speech bubble
-                HStack(alignment: .center, spacing: 8) {
-                    MardiRobotView(mood: vm.mood, size: 72)
+                HStack(alignment: .center, spacing: 10) {
+                    MardiRobotView(mood: vm.mood, size: 92)
                     SpeechBubbleView(text: currentSpeech)
                     Spacer(minLength: 0)
                 }
 
                 // Body area
-                Group {
-                    switch vm.mode {
-                    case .root:
-                        rootButtons
-                    case .capture(let type, let prefill):
-                        CaptureFormView(
-                            type: type,
-                            prefill: prefill ?? .init(),
-                            onCancel: { vm.mode = .root },
-                            onSubmit: { title, body, tags in
-                                vm.submitCapture(title: title, body: body, tagsRaw: tags, type: type, prefill: prefill)
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        switch vm.mode {
+                        case .root:
+                            rootButtons
+                                .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                        case .capture(let type, let prefill):
+                            drawerShell(label: "capture", accent: type.accent, glyph: type.brailleGlyph) {
+                                CaptureFormView(
+                                    type: type,
+                                    prefill: prefill ?? .init(),
+                                    onCancel: { vm.mode = .root },
+                                    onSubmit: { title, body, tags in
+                                        vm.submitCapture(title: title, body: body, tagsRaw: tags, type: type, prefill: prefill)
+                                    }
+                                )
                             }
-                        )
-                    case .search:
-                        searchPanel
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity)))
+                        case .search:
+                            drawerShell(label: "recall", accent: Palette.pink, glyph: "⠿") {
+                                searchPanel
+                            }
+                            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .bottom).combined(with: .opacity)))
+                        }
                     }
+                    .id(modeID)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.snappy(duration: 0.24), value: vm.mode)
 
                 // Footer: search / gear / dismiss
                 footer
             }
-            .padding(14)
+            .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Palette.panelSlate)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Palette.border, lineWidth: 1.5)
-                    )
+                    .brailleField(opacity: 0.05)
+                    .pixelBorder(color: Palette.ruleHi, glow: Palette.pink, cornerRadius: 2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 2)
                     .stroke(.clear)
-                    .scanlines(opacity: 0.04, spacing: 3)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .scanlines(opacity: 0.025, spacing: 3)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
                     .allowsHitTesting(false)
             )
-            .shadow(color: Color.black.opacity(0.45), radius: 18, y: 6)
+            .shadow(color: Color.black.opacity(0.55), radius: 24, y: 8)
 
             // Close button
             Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
+                Text("×")
                     .foregroundStyle(Palette.textMuted)
-                    .font(.system(size: 16))
+                    .monoFont(16, weight: .bold)
             }
             .buttonStyle(.plain)
             .padding(8)
         }
-        .frame(width: 360)
+        .frame(width: 420)
         .colorScheme(.dark)
         .onAppear { vm.onSummon() }
+    }
+
+    private var panelHeader: some View {
+        HStack(spacing: 8) {
+            Text("⣿⣿")
+                .monoFont(11, weight: .bold)
+                .foregroundStyle(Palette.pink)
+            Text("[MARDI]")
+                .monoFont(11, weight: .bold)
+                .foregroundStyle(Palette.bone)
+            Text("corner capture")
+                .monoFont(9)
+                .foregroundStyle(Palette.bone3)
+            Spacer()
+            Text(env.activeAppWatcher.context.label.uppercased())
+                .monoFont(9)
+                .foregroundStyle(Palette.bone2)
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private var modeID: String {
+        switch vm.mode {
+        case .root: "root"
+        case .capture(let type, _): "capture-\(type.rawValue)"
+        case .search: "search"
+        }
     }
 
     private var currentSpeech: String {
@@ -88,6 +126,18 @@ struct MonsterView: View {
         // Put prioritised types first, then the rest. Select is shown separately.
         let all = order + rest
         return VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("⠿")
+                    .monoFont(12, weight: .bold)
+                    .foregroundStyle(Palette.pink)
+                Text("choose what to keep")
+                    .monoFont(10)
+                    .foregroundStyle(Palette.bone2)
+                Spacer()
+                Text("drawer 00")
+                    .monoFont(9)
+                    .foregroundStyle(Palette.bone3)
+            }
             LazyVGrid(
                 columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
                 spacing: 6
@@ -99,6 +149,35 @@ struct MonsterView: View {
                 CaptureButton(type: .select, disabled: true) { }
             }
         }
+    }
+
+    private func drawerShell<Content: View>(
+        label: String,
+        accent: Color,
+        glyph: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(glyph)
+                    .monoFont(14, weight: .bold)
+                    .foregroundStyle(accent)
+                Text("[\(label)]")
+                    .monoFont(10, weight: .bold)
+                    .foregroundStyle(Palette.bone)
+                Spacer()
+                Text("› slide-out drawer")
+                    .monoFont(9)
+                    .foregroundStyle(Palette.bone3)
+            }
+            content()
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Palette.ink.opacity(0.72))
+                .pixelBorder(color: accent.opacity(0.7), glow: accent, cornerRadius: 2)
+        )
     }
 
     @ViewBuilder
@@ -119,7 +198,7 @@ struct MonsterView: View {
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Palette.bubbleBg)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Palette.border, lineWidth: 1))
+                    .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
             )
 
             if vm.searchResults.isEmpty {
@@ -144,7 +223,7 @@ struct MonsterView: View {
                 }
             }
 
-            Button("back") { vm.mode = .root; vm.mood = .idle }
+            Button("‹ back") { vm.mode = .root; vm.mood = .idle }
                 .buttonStyle(.plain)
                 .monoFont(10)
                 .foregroundStyle(Palette.textMuted)
@@ -162,16 +241,17 @@ struct MonsterView: View {
                 }
             }) {
                 HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                    Text("search")
+                    Text("⠿")
+                    Text("recall")
                 }
                 .monoFont(10)
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(Palette.panelSlateHi)
+                        .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
                 )
             }
             .buttonStyle(.plain)
@@ -207,7 +287,8 @@ private struct CaptureButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Text(type.emoji)
+                Text(type.brailleGlyph)
+                    .foregroundStyle(type.accent)
                 Text(type.displayName)
                     .monoFont(11, weight: .medium)
                 Spacer(minLength: 0)
@@ -216,12 +297,9 @@ private struct CaptureButton: View {
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(disabled ? Palette.panelSlateHi.opacity(0.4) : Palette.panelSlateHi)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(type.accent.opacity(disabled ? 0.2 : 0.5), lineWidth: 1)
-                    )
+                    .pixelBorder(color: type.accent.opacity(disabled ? 0.25 : 0.7), glow: disabled ? nil : type.accent, cornerRadius: 2)
             )
             .foregroundStyle(disabled ? Palette.textMuted : Palette.textPrimary)
         }
@@ -237,7 +315,9 @@ private struct SearchResultRow: View {
     var body: some View {
         Button(action: onCopy) {
             HStack(spacing: 8) {
-                Text(memory.type.emoji)
+                Text(memory.type.brailleGlyph)
+                    .monoFont(14, weight: .bold)
+                    .foregroundStyle(memory.type.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(memory.title)
                         .monoFont(11, weight: .medium)
@@ -257,7 +337,7 @@ private struct SearchResultRow: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 4).fill(Palette.panelSlateHi.opacity(0.5)))
+            .background(RoundedRectangle(cornerRadius: 2).fill(Palette.panelSlateHi.opacity(0.5)).pixelBorder(color: Palette.rule, cornerRadius: 2))
         }
         .buttonStyle(.plain)
     }

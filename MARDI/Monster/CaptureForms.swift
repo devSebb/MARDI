@@ -24,7 +24,9 @@ struct CaptureFormView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(type.emoji).monoFont(12)
+                Text(type.brailleGlyph)
+                    .monoFont(14, weight: .bold)
+                    .foregroundStyle(type.accent)
                 Text(type.displayName.uppercased())
                     .monoFont(10, weight: .bold)
                     .foregroundStyle(type.accent)
@@ -43,9 +45,9 @@ struct CaptureFormView: View {
                 .foregroundStyle(Palette.textPrimary)
                 .padding(8)
                 .background(
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(Palette.bubbleBg)
-                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Palette.border, lineWidth: 1))
+                        .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
                 )
 
             TextEditor(text: $bodyText)
@@ -55,14 +57,14 @@ struct CaptureFormView: View {
                 .frame(height: bodyHeight())
                 .padding(6)
                 .background(
-                    RoundedRectangle(cornerRadius: 5)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(Palette.bubbleBg)
-                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Palette.border, lineWidth: 1))
+                        .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
                 )
 
             HStack(spacing: 4) {
-                Image(systemName: "tag")
-                    .font(.system(size: 10))
+                Text("⠿")
+                    .monoFont(10, weight: .bold)
                     .foregroundStyle(Palette.textMuted)
                 TextField("", text: $tagsRaw, prompt: Text("tags (space or comma separated)").foregroundStyle(Palette.textMuted))
                     .textFieldStyle(.plain)
@@ -72,9 +74,9 @@ struct CaptureFormView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Palette.bubbleBg)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Palette.border, lineWidth: 1))
+                    .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
             )
 
             HStack {
@@ -93,10 +95,10 @@ struct CaptureFormView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(
-                        RoundedRectangle(cornerRadius: 5).fill(Palette.phosphor.opacity(0.15))
-                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Palette.phosphor, lineWidth: 1))
+                        RoundedRectangle(cornerRadius: 2).fill(Palette.pink.opacity(0.14))
+                            .pixelBorder(color: Palette.pink, glow: Palette.pink, cornerRadius: 2)
                     )
-                    .foregroundStyle(Palette.phosphor)
+                    .foregroundStyle(Palette.bone)
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: [.command])

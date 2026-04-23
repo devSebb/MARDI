@@ -27,7 +27,9 @@ struct MemoryDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Image(systemName: memory.type.symbol).foregroundStyle(memory.type.accent)
+                Text(memory.type.brailleGlyph)
+                    .monoFont(14, weight: .bold)
+                    .foregroundStyle(memory.type.accent)
                 Text(memory.type.displayName.uppercased())
                     .monoFont(10, weight: .bold)
                     .foregroundStyle(memory.type.accent)
@@ -53,9 +55,10 @@ struct MemoryDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Palette.panelSlate)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Palette.border, lineWidth: 1))
+                    .brailleField(opacity: 0.035)
+                    .pixelBorder(color: Palette.ruleHi, cornerRadius: 2)
             )
     }
 
@@ -70,11 +73,11 @@ struct MemoryDetailView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Palette.phosphor.opacity(0.18))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Palette.phosphor, lineWidth: 1.5))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Palette.pink.opacity(0.14))
+                        .pixelBorder(color: Palette.pink, glow: Palette.pink, cornerRadius: 2)
                 )
-                .foregroundStyle(Palette.phosphor)
+                .foregroundStyle(Palette.bone)
             }
             .buttonStyle(.plain)
 
@@ -139,7 +142,7 @@ struct MemoryDetailView: View {
                 Text(tag).monoFont(10)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Capsule().fill(Palette.panelSlate).overlay(Capsule().stroke(Palette.border, lineWidth: 0.5)))
+                    .background(Capsule().fill(Palette.panelSlate).overlay(Capsule().stroke(Palette.rule, lineWidth: 0.5)))
                     .foregroundStyle(Palette.textSecondary)
             }
             Spacer()
