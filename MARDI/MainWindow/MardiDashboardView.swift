@@ -11,30 +11,33 @@ struct MardiDashboardView: View {
                     Button {
                         workspace.createThread()
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 7) {
                             Text("⣿")
-                                .monoFont(11, weight: .bold)
-                                .foregroundStyle(Palette.neonCyan)
-                            Text("NEW CONVERSATION")
-                                .monoFont(10, weight: .bold)
-                                .tracking(1.2)
-                                .foregroundStyle(Palette.textPrimary)
+                                .monoFont(10)
+                                .foregroundStyle(Palette.neonMagenta)
+                            Text("new conversation")
+                                .monoFont(10)
+                                .tracking(0.8)
+                                .foregroundStyle(Palette.textSecondary)
                             Spacer()
+                            Text("→")
+                                .monoFont(10)
+                                .foregroundStyle(Palette.neonMagenta.opacity(0.7))
                         }
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(Palette.neonCyan.opacity(0.10))
-                        .pixelBorder(Palette.neonCyan.opacity(0.55), width: 1)
+                        .padding(.vertical, 7)
+                        .background(Palette.neonMagenta.opacity(0.07))
+                        .pixelBorder(Palette.neonMagenta.opacity(0.40), width: 1)
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
                     ForEach(workspace.threads) { thread in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(thread.title)
-                                .monoFont(11, weight: .bold)
-                                .foregroundStyle(Palette.textPrimary)
+                                .monoFont(10)
+                                .foregroundStyle(Palette.textSecondary)
                                 .lineLimit(1)
                             Text(thread.updated, style: .relative)
                                 .monoFont(9)
@@ -45,28 +48,36 @@ struct MardiDashboardView: View {
                         .listRowBackground(Color.clear)
                     }
                 } header: {
-                    BrailleLabel(text: "Conversations", color: Palette.neonCyan, size: 10)
-                        .padding(.bottom, 4)
+                    HStack(spacing: 5) {
+                        Text("⠿").monoFont(9).foregroundStyle(Palette.neonCyan)
+                        Text("conversations")
+                            .monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                    }
+                    .padding(.bottom, 4)
                 }
 
                 Section {
                     ForEach(workspace.files) { file in
                         HStack(spacing: 8) {
                             Text(glyph(for: file.kind))
-                                .monoFont(11, weight: .bold)
+                                .monoFont(11)
                                 .foregroundStyle(color(for: file.kind))
                                 .frame(width: 14)
-                            Text(file.title.uppercased())
-                                .monoFont(10, weight: .medium)
-                                .tracking(1.0)
-                                .foregroundStyle(Palette.textPrimary)
+                            Text(file.title.lowercased())
+                                .monoFont(10)
+                                .tracking(0.8)
+                                .foregroundStyle(Palette.textSecondary)
                         }
                         .tag(AgentSidebarItem.file(file.id))
                         .listRowBackground(Color.clear)
                     }
                 } header: {
-                    BrailleLabel(text: "Agent Files", color: Palette.neonMagenta, size: 10)
-                        .padding(.bottom, 4)
+                    HStack(spacing: 5) {
+                        Text("⠿").monoFont(9).foregroundStyle(Palette.neonMagenta)
+                        Text("agent files")
+                            .monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                    }
+                    .padding(.bottom, 4)
                 }
             }
             .listStyle(.sidebar)
@@ -110,15 +121,19 @@ struct MardiDashboardView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            MardiFishView(mood: .idle, size: 128)
-            BrailleLabel(text: "Mardi // standby", color: Palette.neonMagenta, size: 11)
-            Text("Select a conversation or an agent file.")
-                .monoFont(11)
-                .foregroundStyle(Palette.textSecondary)
-            Text("The dashboard is where you talk to Mardi and shape its identity.")
-                .monoFont(9)
-                .foregroundStyle(Palette.textMuted)
+        VStack(spacing: 20) {
+            MardiFishBrailleView(mood: .idle, size: 240)
+            SpeechBubbleView(text: "Still here.")
+            VStack(spacing: 8) {
+                BrailleLabel(text: "mardi · standby", color: Palette.neonMagenta, size: 11)
+                Text("Select a conversation or start a new one.")
+                    .monoFont(10)
+                    .tracking(0.5)
+                    .foregroundStyle(Palette.textSecondary)
+                Text("The dashboard is where you talk to Mardi and shape its identity.")
+                    .monoFont(9)
+                    .foregroundStyle(Palette.textMuted)
+            }
         }
     }
 
@@ -199,14 +214,14 @@ private struct MardiChatView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
                     Text("⣿⣿")
-                        .monoFont(11, weight: .bold)
+                        .monoFont(11)
                         .foregroundStyle(Palette.neonMagenta)
-                    Text((thread?.title ?? "CONVERSATION").uppercased())
-                        .monoFont(13, weight: .bold)
-                        .tracking(1.5)
+                    Text((thread?.title ?? "conversation").lowercased())
+                        .monoFont(12)
+                        .tracking(1.2)
                         .foregroundStyle(Palette.textPrimary)
                 }
-                Text(env.settings.hasAPIKey ? "Grounded in your vault · \(env.settings.buildProvider().displayName)." : "Set an API key in Settings to enable Mardi chat.")
+                Text(env.settings.hasAPIKey ? "grounded in your vault · \(env.settings.buildProvider().displayName.lowercased())." : "set an API key in settings to enable mardi chat.")
                     .monoFont(9)
                     .foregroundStyle(Palette.textMuted)
             }
@@ -214,12 +229,12 @@ private struct MardiChatView: View {
             if workspace.sending {
                 HStack(spacing: 6) {
                     Text("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-                        .monoFont(10, weight: .bold)
-                        .foregroundStyle(Palette.neonCyan)
-                    Text("THINKING")
-                        .monoFont(9, weight: .bold)
-                        .tracking(1.5)
-                        .foregroundStyle(Palette.neonCyan)
+                        .monoFont(10)
+                        .foregroundStyle(Palette.neonMagenta)
+                    Text("thinking…")
+                        .monoFont(9)
+                        .tracking(1.2)
+                        .foregroundStyle(Palette.neonMagenta)
                 }
             }
         }
@@ -228,7 +243,7 @@ private struct MardiChatView: View {
         .background(
             ZStack {
                 Palette.panelSlate
-                BrailleField(color: Palette.brailleDim, opacity: 0.45, fontSize: 10, density: 0.3)
+                BrailleField(color: Palette.brailleDim, opacity: 0.40, fontSize: 10, density: 0.28)
             }
         )
     }
@@ -289,23 +304,23 @@ private struct MessageBubble: View {
                 if message.role == "assistant" {
                     HStack(spacing: 5) {
                         Text("⣿⣿")
-                            .monoFont(10, weight: .bold)
-                            .foregroundStyle(Palette.neonCyan)
-                        Text("MARDI")
-                            .monoFont(10, weight: .bold)
-                            .tracking(1.8)
-                            .foregroundStyle(Palette.neonCyan)
+                            .monoFont(10)
+                            .foregroundStyle(Palette.neonMagenta)
+                        Text("mardi")
+                            .monoFont(10)
+                            .tracking(1.5)
+                            .foregroundStyle(Palette.neonMagenta)
                     }
                 } else {
                     Spacer()
                     HStack(spacing: 5) {
-                        Text("YOU")
-                            .monoFont(10, weight: .bold)
-                            .tracking(1.8)
-                            .foregroundStyle(Palette.neonViolet)
-                        Text("⢸⢸")
-                            .monoFont(10, weight: .bold)
-                            .foregroundStyle(Palette.neonViolet)
+                        Text("you")
+                            .monoFont(10)
+                            .tracking(1.5)
+                            .foregroundStyle(Palette.textSecondary)
+                        Text("⢸")
+                            .monoFont(10)
+                            .foregroundStyle(Palette.textMuted)
                     }
                 }
             }
@@ -365,11 +380,11 @@ private struct MardiSpecEditorView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 7) {
                         Text("⠿⠿")
-                            .monoFont(11, weight: .bold)
+                            .monoFont(11)
                             .foregroundStyle(Palette.neonMagenta)
-                        Text((file?.title ?? "AGENT FILE").uppercased())
-                            .monoFont(13, weight: .bold)
-                            .tracking(1.5)
+                        Text((file?.title ?? "agent file").lowercased())
+                            .monoFont(12)
+                            .tracking(1.2)
                             .foregroundStyle(Palette.textPrimary)
                     }
                     Text(file?.relativePath ?? "")

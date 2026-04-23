@@ -5,10 +5,10 @@ enum DashboardTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .library: "LIBRARY"
-        case .mardi: "MARDI"
-        case .graph: "GRAPH"
-        case .timeline: "TIMELINE"
+        case .library: "library"
+        case .mardi: "mardi"
+        case .graph: "graph"
+        case .timeline: "timeline"
         }
     }
     var symbol: String {
@@ -41,9 +41,9 @@ struct MainWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             tabBar
-            BrailleDivider(color: Palette.neonMagenta.opacity(0.55))
-                .padding(.horizontal, 4)
-                .background(Palette.charcoal)
+            BrailleDivider(color: Palette.neonMagenta.opacity(0.35))
+                .padding(.horizontal, 0)
+                .background(Palette.panelSlate)
             Group {
                 switch tab {
                 case .library:
@@ -81,24 +81,25 @@ struct MainWindowView: View {
 
     private var tabBar: some View {
         HStack(spacing: 0) {
+            // Wordmark — ⣿⣿ [MARDI] ⣿⣿
             HStack(spacing: 8) {
                 Text("⣿⣿")
-                    .monoFont(12, weight: .bold)
+                    .monoFont(11, weight: .bold)
                     .foregroundStyle(Palette.neonMagenta)
-                Text("MARDI")
-                    .pixelFont(14)
-                    .tracking(3)
-                    .foregroundStyle(Palette.neonCyan)
-                    .shadow(color: Palette.neonCyan.opacity(0.4), radius: 2)
+                Text("[MARDI]")
+                    .monoFont(11, weight: .bold)
+                    .tracking(2.5)
+                    .foregroundStyle(Palette.textPrimary)
                 Text("⣿⣿")
-                    .monoFont(12, weight: .bold)
+                    .monoFont(11, weight: .bold)
                     .foregroundStyle(Palette.neonMagenta)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
 
-            Text("⠂⠂⠂")
-                .monoFont(10)
+            // Divider dot
+            Text("⠒")
+                .monoFont(9)
                 .foregroundStyle(Palette.border)
                 .padding(.horizontal, 4)
 
@@ -106,25 +107,25 @@ struct MainWindowView: View {
                 Button(action: { tab = t }) {
                     HStack(spacing: 5) {
                         Text(t.glyph)
-                            .monoFont(10, weight: .bold)
+                            .monoFont(10)
                         Text(t.label)
-                            .monoFont(10, weight: tab == t ? .bold : .regular)
-                            .tracking(1.5)
+                            .monoFont(10, weight: tab == t ? .semibold : .regular)
+                            .tracking(1.2)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
-                    .foregroundStyle(tab == t ? Palette.neonCyan : Palette.textSecondary)
+                    .foregroundStyle(tab == t ? Palette.textPrimary : Palette.textMuted)
                     .background(
                         tab == t
-                            ? Palette.neonCyan.opacity(0.10)
+                            ? Palette.neonMagenta.opacity(0.08)
                             : Color.clear
                     )
                     .overlay(alignment: .bottom) {
                         if tab == t {
                             Rectangle()
-                                .fill(Palette.neonCyan)
-                                .frame(height: 2)
-                                .shadow(color: Palette.neonCyan.opacity(0.55), radius: 2)
+                                .fill(Palette.neonMagenta)
+                                .frame(height: 1)
+                                .shadow(color: Palette.neonMagenta.opacity(0.55), radius: 3)
                         }
                     }
                 }
@@ -136,24 +137,24 @@ struct MainWindowView: View {
             if let err = env.bootError {
                 HStack(spacing: 5) {
                     Text("⡏⠯")
-                        .monoFont(10, weight: .bold)
+                        .monoFont(9)
                         .foregroundStyle(Palette.neonRed)
                     Text(err)
-                        .monoFont(10)
+                        .monoFont(9)
                         .foregroundStyle(Palette.neonRed)
                 }
                 .padding(.horizontal, 10)
             }
 
             SettingsLink {
-                HStack(spacing: 5) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11))
-                    Text("CFG")
-                        .monoFont(10, weight: .bold)
+                HStack(spacing: 4) {
+                    Text("⠶")
+                        .monoFont(10)
+                    Text("cfg")
+                        .monoFont(9)
                         .tracking(1.5)
                 }
-                .foregroundStyle(Palette.textSecondary)
+                .foregroundStyle(Palette.textMuted)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
@@ -165,8 +166,8 @@ struct MainWindowView: View {
         .background(
             ZStack {
                 Palette.panelSlate
-                BrailleField(color: Palette.brailleDim, opacity: 0.50, fontSize: 10, density: 0.45)
-                Scanlines(opacity: 0.10, spacing: 3)
+                BrailleField(color: Palette.brailleDim, opacity: 0.55, fontSize: 10, density: 0.38)
+                Scanlines(opacity: 0.07, spacing: 3)
             }
         )
     }
@@ -186,32 +187,32 @@ struct MainWindowView: View {
 
 private struct GraphPlaceholderView: View {
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 16) {
             Text("⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶")
-                .pixelFont(18)
-                .foregroundStyle(Palette.neonMagenta.opacity(0.55))
-            BrailleLabel(text: "Graph // v0.5", color: Palette.neonMagenta, size: 11)
-            Text("Force-directed layout of your memories.")
-                .monoFont(10).foregroundStyle(Palette.textSecondary)
+                .monoFont(16)
+                .foregroundStyle(Palette.neonViolet.opacity(0.45))
+            AgentHeader(title: "graph", subtitle: "force-directed layout · v0.5", tint: Palette.neonViolet)
+                .frame(maxWidth: 380)
             Text("Edges: shared tags + embedding similarity > 0.85")
                 .monoFont(9).foregroundStyle(Palette.textMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .padding(40)
     }
 }
 
 private struct TimelinePlaceholderView: View {
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 16) {
             Text("⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿")
-                .pixelFont(18)
-                .foregroundStyle(Palette.neonOrange.opacity(0.55))
-            BrailleLabel(text: "Timeline // v0.5", color: Palette.neonOrange, size: 11)
-            Text("Contribution heatmap of captures per day.")
-                .monoFont(10).foregroundStyle(Palette.textSecondary)
+                .monoFont(16)
+                .foregroundStyle(Palette.neonOrange.opacity(0.45))
+            AgentHeader(title: "timeline", subtitle: "contribution heatmap · v0.5", tint: Palette.neonOrange)
+                .frame(maxWidth: 380)
+            Text("Captures per day, visualized.")
+                .monoFont(9).foregroundStyle(Palette.textMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .padding(40)
     }
 }

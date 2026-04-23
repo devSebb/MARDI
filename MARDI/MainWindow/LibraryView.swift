@@ -41,15 +41,14 @@ struct LibraryView: View {
                 MemoryDetailView(memory: m)
                     .id(m.id)
             } else {
-                VStack(spacing: 14) {
-                    MardiFishView(mood: .idle, size: 112)
-                    BrailleLabel(
-                        text: env.recentMemories.isEmpty ? "vault // empty" : "select memory",
-                        color: Palette.neonCyan,
-                        size: 10
-                    )
-                    Text(env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
-                        .monoFont(11).foregroundStyle(Palette.textSecondary)
+                VStack(spacing: 18) {
+                    MardiFishBrailleView(mood: .idle, size: 180)
+                    SpeechBubbleView(text: env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
+                    HStack(spacing: 5) {
+                        Text("⠿").monoFont(9).foregroundStyle(Palette.neonCyan)
+                        Text(env.recentMemories.isEmpty ? "vault · empty" : "vault · select memory")
+                            .monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
@@ -134,8 +133,11 @@ struct SidebarView: View {
                     .buttonStyle(.plain)
                 }
             } header: {
-                BrailleLabel(text: "Library", color: Palette.neonMagenta, size: 10)
-                    .padding(.bottom, 4)
+                HStack(spacing: 5) {
+                    Text("⠿").monoFont(9).foregroundStyle(Palette.neonMagenta)
+                    Text("library").monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                }
+                .padding(.bottom, 4)
             }
 
             if !env.countsByFolder.isEmpty {
@@ -156,8 +158,11 @@ struct SidebarView: View {
                         .buttonStyle(.plain)
                     }
                 } header: {
-                    BrailleLabel(text: "Folders", color: Palette.neonOrange, size: 10)
-                        .padding(.bottom, 4)
+                    HStack(spacing: 5) {
+                        Text("⡶").monoFont(9).foregroundStyle(Palette.neonOrange)
+                        Text("folders").monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                    }
+                    .padding(.bottom, 4)
                 }
             }
         }

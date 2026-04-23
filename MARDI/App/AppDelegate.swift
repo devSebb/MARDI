@@ -56,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     }
 
     func showMonster() {
+        // Explicitly close any existing panel before creating a new one.
+        // Reassigning the Swift reference alone doesn't close the NSPanel —
+        // AppKit holds a window-server reference until orderOut is called.
+        monsterPanel?.orderOut(nil)
+        monsterPanel = nil
+
         guard let env, let vm = monsterVM else { return }
         let size = CGSize(width: 380, height: 760)
 

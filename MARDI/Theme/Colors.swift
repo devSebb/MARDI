@@ -5,22 +5,22 @@ import SwiftUI
 /// violet ambient. Existing semantic keys (phosphor, amber, sky, magenta, rust)
 /// are preserved so every call-site gets the new look without a rename.
 enum Palette {
-    // Surfaces — deep void with a violet undertone.
+    // Surfaces — near-black with a faint violet undertone (matches web ink palette).
     static let voidBlack = Color(hex: 0x000000)
-    static let charcoal = Color(hex: 0x07030F)         // app background
-    static let panelSlate = Color(hex: 0x0F0822)       // primary panel
-    static let panelSlateHi = Color(hex: 0x1A1038)     // raised panel
-    static let bubbleBg = Color(hex: 0x04020A)         // inset fields / editors
+    static let charcoal = Color(hex: 0x08070B)         // app background (web: --ink)
+    static let panelSlate = Color(hex: 0x0D0B13)       // primary panel (web: --ink-2)
+    static let panelSlateHi = Color(hex: 0x15121D)     // raised panel (web: --ink-3)
+    static let bubbleBg = Color(hex: 0x0D0B13)         // inset fields / editors
 
-    // Borders — dim violet that lights up to magenta when focused.
-    static let border = Color(hex: 0x2A1A50)
-    static let borderBright = Color(hex: 0x6B3FAA)
-    static let brailleDim = Color(hex: 0x1E124A)       // braille dot-field ink
+    // Borders — very dim, rule-like (matches web --rule / --rule-hi).
+    static let border = Color(hex: 0x242029)
+    static let borderBright = Color(hex: 0x3A3444)
+    static let brailleDim = Color(hex: 0x1C1820)       // braille dot-field ink
 
-    // Text — pixel white with blue tint → muted violet-gray.
-    static let textPrimary = Color(hex: 0xF0F3FF)
-    static let textSecondary = Color(hex: 0x8B8FA5)
-    static let textMuted = Color(hex: 0x4A4F66)
+    // Text — warm bone hierarchy (web: --bone / --bone-2 / --bone-3).
+    static let textPrimary = Color(hex: 0xF3F1EC)
+    static let textSecondary = Color(hex: 0xB7B3AA)
+    static let textMuted = Color(hex: 0x6B6860)
 
     // Neon accents — the core of the fishbowl palette.
     static let neonCyan = Color(hex: 0x3EF0FF)         // primary / success / "water"

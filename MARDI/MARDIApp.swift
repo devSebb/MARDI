@@ -60,13 +60,7 @@ struct DashboardContainer: View {
             MainWindowView()
                 .environmentObject(env)
         } else {
-            VStack(spacing: 12) {
-                MardiFishView(mood: .thinking, size: 128)
-                Text("Booting Mardi…").monoFont(11).foregroundStyle(Palette.textSecondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Palette.charcoal)
-            .colorScheme(.dark)
+            BootScreen()
         }
     }
 }
@@ -81,6 +75,69 @@ struct SettingsContainer: View {
                     .environmentObject(env)
             } else {
                 Text("Booting…").monoFont(11).padding()
+            }
+        }
+    }
+}
+
+struct BootScreen: View {
+    @State private var tick: Int = 0
+    private let spinnerGlyphs = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    var body: some View {
+        ZStack {
+            Palette.charcoal
+            BrailleField(color: Palette.brailleDim, opacity: 0.35, fontSize: 12, density: 0.22)
+            Scanlines(opacity: 0.07, spacing: 3)
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                VStack(spacing: 24) {
+                    // wordmark header
+                    HStack(spacing: 8) {
+                        Text("⣿⣿")
+                            .monoFont(12, weight: .bold)
+                            .foregroundStyle(Palette.neonMagenta)
+                        Text("[MARDI]")
+                            .monoFont(12, weight: .bold)
+                            .tracking(3)
+                            .foregroundStyle(Palette.textPrimary)
+                        Text("⣿⣿")
+                            .monoFont(12, weight: .bold)
+                            .foregroundStyle(Palette.neonMagenta)
+                    }
+
+                    MardiFishBrailleView(mood: .thinking, size: 200)
+
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            Text(spinnerGlyphs[tick % spinnerGlyphs.count])
+                                .monoFont(12, weight: .bold)
+                                .foregroundStyle(Palette.neonMagenta)
+                            Text("initializing vault…")
+                                .monoFont(10)
+                                .tracking(1.5)
+                                .foregroundStyle(Palette.textSecondary)
+                        }
+                        BrailleDivider(color: Palette.neonMagenta.opacity(0.35))
+                            .frame(maxWidth: 260)
+                        Text("v0 · macOS · your data, your disk")
+                            .monoFont(9)
+                            .tracking(1.8)
+                            .foregroundStyle(Palette.textMuted)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .colorScheme(.dark)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                tick += 1
             }
         }
     }

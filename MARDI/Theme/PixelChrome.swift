@@ -212,15 +212,16 @@ extension ButtonStyle where Self == PixelButtonStyle {
 
 // MARK: - Agent header
 
-/// Hermes-agent-style titled section: `╔══⠿⠿⠿ MARDI ⠿⠿⠿══╗` feel, pixel only.
+/// Hermes-agent-style titled section header.
+/// Renders: ⣿⣿ [TITLE] ⣿⣿ ⠒⠒⠒⠒⠒⠒ (rule fills remaining width).
 struct AgentHeader: View {
     var title: String
     var subtitle: String?
     var tint: Color = Palette.neonMagenta
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
                 Text("⣿⣿")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(tint)
@@ -228,17 +229,18 @@ struct AgentHeader: View {
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(Palette.textPrimary)
-                Spacer(minLength: 0)
                 Text("⣿⣿")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(tint)
+                BrailleDivider(color: tint.opacity(0.40))
             }
             if let subtitle {
                 Text(subtitle)
                     .font(.system(size: 10, design: .monospaced))
+                    .tracking(1.2)
                     .foregroundStyle(Palette.textMuted)
             }
-            BrailleDivider(color: tint.opacity(0.55))
+            BrailleDivider(color: tint.opacity(0.45))
         }
     }
 }

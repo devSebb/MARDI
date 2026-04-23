@@ -22,7 +22,7 @@ struct MonsterView: View {
                     titleBar
 
                     HStack(alignment: .center, spacing: 10) {
-                        MardiFishView(mood: vm.mood, size: 82)
+                        MardiFishBrailleView(mood: vm.mood, size: 82)
                         SpeechBubbleView(text: currentSpeech)
                         Spacer(minLength: 0)
                     }
@@ -56,18 +56,18 @@ struct MonsterView: View {
                         Scanlines(opacity: 0.10, spacing: 3)
                     }
                 )
-                .pixelBorder(Palette.neonMagenta, width: 1.5, lit: true, radius: 0)
-                .shadow(color: Palette.neonMagenta.opacity(0.30), radius: 8, y: 4)
-                .shadow(color: Palette.neonCyan.opacity(0.15), radius: 12, y: 2)
+                .pixelBorder(Palette.neonMagenta, width: 1, radius: 0)
+                .shadow(color: Palette.neonMagenta.opacity(0.12), radius: 20, y: 5)
+                .shadow(color: Color.black.opacity(0.6), radius: 10, y: 4)
 
                 Button(action: onDismiss) {
                     Text("⡏⠯")
-                        .monoFont(11, weight: .bold)
-                        .foregroundStyle(Palette.neonMagenta)
+                        .monoFont(10)
+                        .foregroundStyle(Palette.textMuted)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Palette.panelSlate.opacity(0.85))
-                        .pixelBorder(Palette.neonMagenta.opacity(0.55), width: 1)
+                        .background(Palette.panelSlate)
+                        .pixelBorder(Palette.border, width: 1)
                 }
                 .buttonStyle(.plain)
                 .padding(8)
@@ -86,15 +86,15 @@ struct MonsterView: View {
     private var titleBar: some View {
         HStack(spacing: 6) {
             Text("⣿⣿")
-                .monoFont(10, weight: .bold)
-                .foregroundStyle(Palette.neonMagenta)
-            Text("[MARDI::AWAKE]")
-                .monoFont(10, weight: .bold)
-                .tracking(2)
-                .foregroundStyle(Palette.neonCyan)
+                .monoFont(10)
+                .foregroundStyle(Palette.neonMagenta.opacity(0.45))
+            Text("mardi · fishbowl")
+                .monoFont(10)
+                .tracking(1.5)
+                .foregroundStyle(Palette.textMuted)
             Spacer()
             Text(statusPhrase)
-                .monoFont(9, weight: .bold)
+                .monoFont(9)
                 .tracking(1.3)
                 .foregroundStyle(statusTint)
                 .lineLimit(1)
@@ -104,14 +104,14 @@ struct MonsterView: View {
 
     private var statusPhrase: String {
         switch vm.mood {
-        case .idle: "⠂ standby"
-        case .summoned: "⣿ awake"
+        case .idle: "· standby"
+        case .summoned: "⠿ awake"
         case .listening: "⠿ listening"
-        case .thinking: "⡶ thinking"
+        case .thinking: "⠿ thinking…"
         case .success: "⠿ saved"
         case .error: "⡏⠯ error"
         case .selectMode: "⡟ selecting"
-        case .sleeping: "⠁ sleeping"
+        case .sleeping: "· sleeping"
         }
     }
 

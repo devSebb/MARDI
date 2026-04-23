@@ -24,28 +24,27 @@ struct SpeechBubbleView: View {
                 tailView
             }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("⠿⠿")
-                    .monoFont(10, weight: .bold)
-                    .foregroundStyle(Palette.neonMagenta)
+                Text("⠿")
+                    .monoFont(10)
+                    .foregroundStyle(Palette.textMuted)
                 Text(displayed)
                     .monoFont(12)
-                    .foregroundStyle(Palette.neonCyan)
+                    .foregroundStyle(Palette.textPrimary)
                 if blink || isRevealing {
                     Rectangle()
                         .fill(Palette.neonCyan)
                         .frame(width: 7, height: 12)
-                        .opacity(isRevealing ? 0.95 : (blink ? 0.9 : 0.0))
+                        .opacity(isRevealing ? 0.9 : (blink ? 0.8 : 0.0))
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(Palette.bubbleBg)
             .overlay(
-                Scanlines(opacity: 0.10, spacing: 2)
+                Scanlines(opacity: 0.08, spacing: 2)
                     .allowsHitTesting(false)
             )
-            .pixelBorder(Palette.neonMagenta, width: 1.5, lit: true, radius: 0)
-            .shadow(color: Palette.neonCyan.opacity(0.22), radius: 4)
+            .pixelBorder(Palette.borderBright, width: 1, radius: 0)
 
             if tailSide == .trailing {
                 tailView
@@ -73,10 +72,9 @@ struct SpeechBubbleView: View {
             .fill(Palette.bubbleBg)
             .overlay(
                 Triangle(pointing: tailSide == .leading ? .left : .right)
-                    .stroke(Palette.neonMagenta, lineWidth: 1.5)
+                    .stroke(Palette.borderBright, lineWidth: 1)
             )
             .frame(width: 10, height: 14)
-            .shadow(color: Palette.neonMagenta.opacity(0.28), radius: 2)
     }
 
     private func startReveal() {
