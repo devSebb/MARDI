@@ -178,6 +178,14 @@ struct MonsterView: View {
 
             Spacer()
 
+            SettingsLink {
+                Image(systemName: "gearshape")
+                    .foregroundStyle(Palette.textSecondary)
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(.plain)
+            .help("Open Settings")
+
             Button(action: onOpenDashboard) {
                 Image(systemName: "rectangle.3.group")
                     .foregroundStyle(Palette.textSecondary)

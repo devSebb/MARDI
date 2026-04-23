@@ -28,7 +28,8 @@ final class AppEnvironment: ObservableObject {
         do {
             let vault = try Vault(rootURL: settings.vaultURL)
             let embedder = Embedder()
-            let store = try await MemoryStore(path: vault.sqliteURL, dimension: embedder.dimension)
+            let store = try await MemoryStore(path: vault.sqliteURL)
+            try await store.setup()
             return await AppEnvironment(vault: vault, store: store, embedder: embedder)
         } catch {
             return await AppEnvironment(failureMessage: "Failed to open vault: \(error.localizedDescription)")
@@ -51,9 +52,9 @@ final class AppEnvironment: ObservableObject {
         let embedder = Embedder()
         let safeStore: MemoryStore
         do {
-            safeStore = try await MemoryStore(path: tmp, dimension: embedder.dimension)
+            safeStore = try await MemoryStore(path: tmp)
+            try await safeStore.setup()
         } catch {
-            // Last resort — this really shouldn't happen.
             fatalError("Cannot open even a temporary store: \(error)")
         }
         let safeVault = (try? Vault(rootURL: tmp.deletingLastPathComponent())) ??

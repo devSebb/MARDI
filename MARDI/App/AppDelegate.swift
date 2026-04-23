@@ -6,7 +6,7 @@ import Combine
 /// watcher, the global hotkey, and the quick-search NSPanel.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    var env: AppEnvironment?
+    @Published var env: AppEnvironment?
     private var monsterPanel: MonsterPanel?
     private var quickSearchPanel: QuickSearchPanel?
     private var monsterVM: MonsterViewModel?

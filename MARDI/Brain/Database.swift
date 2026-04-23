@@ -1,21 +1,23 @@
 import Foundation
 import SQLiteVec
 
-/// Co-located metadata + FTS5 + sqlite-vec vectors in one SQLite file.
-/// All writes go through this class so the three tables stay in sync.
-/// Named `MemoryStore` to avoid collision with `SQLiteVec.Database`.
+/// Co-located metadata + FTS5 + embedding BLOBs in one SQLite file.
+///
+/// We use SQLiteVec's plain SQLite bindings for storage, FTS5 for keyword
+/// search, and do cosine similarity in Swift over the embedding BLOBs.
+/// This sidesteps sqlite-vec's vec0 table schema quirks (TEXT primary key
+/// isn't supported there) and is plenty fast for v0-scale vaults.
 actor MemoryStore {
     private let db: Database
-    private let dimension: Int
 
-    init(path: URL, dimension: Int) async throws {
+    init(path: URL) async throws {
         try SQLiteVec.initialize()
         self.db = try Database(.uri(path.path))
-        self.dimension = dimension
-        try await migrate()
     }
 
-    private func migrate() async throws {
+    /// Run schema migrations. Split from init so boot failures surface
+    /// cleanly without leaving a half-initialised actor.
+    func setup() async throws {
         try await db.execute(
             """
             CREATE TABLE IF NOT EXISTS memories (
@@ -29,7 +31,8 @@ actor MemoryStore {
                 source_url TEXT,
                 thumbnail_path TEXT,
                 created INTEGER NOT NULL,
-                markdown_path TEXT NOT NULL
+                markdown_path TEXT NOT NULL,
+                embedding BLOB
             );
             """
         )
@@ -48,15 +51,6 @@ actor MemoryStore {
             );
             """
         )
-
-        try await db.execute(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
-                id TEXT PRIMARY KEY,
-                embedding float[\(dimension)]
-            );
-            """
-        )
     }
 
     // MARK: - Write
@@ -64,12 +58,14 @@ actor MemoryStore {
     func upsert(_ m: Memory, embedding: [Float]) async throws {
         let tagsJSON = (try? String(data: JSONEncoder().encode(m.tags), encoding: .utf8)) ?? "[]"
         let createdMs = Int64(m.created.timeIntervalSince1970 * 1000)
+        let blob = Self.encode(embedding)
 
         try await db.execute(
             """
             INSERT OR REPLACE INTO memories
-            (id, type, title, summary, body, tags, source_app, source_url, thumbnail_path, created, markdown_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            (id, type, title, summary, body, tags, source_app, source_url,
+             thumbnail_path, created, markdown_path, embedding)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
             params: [
                 m.id,
@@ -82,7 +78,8 @@ actor MemoryStore {
                 m.sourceURL ?? "",
                 m.thumbnailPath ?? "",
                 createdMs,
-                m.markdownPath
+                m.markdownPath,
+                blob
             ]
         )
 
@@ -91,18 +88,11 @@ actor MemoryStore {
             "INSERT INTO memories_fts (id, title, summary, body, tags) VALUES (?, ?, ?, ?, ?);",
             params: [m.id, m.title, m.summary ?? "", m.body, m.tags.joined(separator: " ")]
         )
-
-        try await db.execute("DELETE FROM memory_vectors WHERE id = ?;", params: [m.id])
-        try await db.execute(
-            "INSERT INTO memory_vectors (id, embedding) VALUES (?, ?);",
-            params: [m.id, embedding]
-        )
     }
 
     func delete(id: String) async throws {
         try await db.execute("DELETE FROM memories WHERE id = ?;", params: [id])
         try await db.execute("DELETE FROM memories_fts WHERE id = ?;", params: [id])
-        try await db.execute("DELETE FROM memory_vectors WHERE id = ?;", params: [id])
     }
 
     // MARK: - Read
@@ -141,19 +131,22 @@ actor MemoryStore {
         return out
     }
 
-    // MARK: - Hybrid search (semantic + FTS5, RRF-merged)
+    // MARK: - Hybrid search
 
     func search(embedding: [Float], keywordQuery: String, typeFilter: MemoryType? = nil, k: Int = 20) async throws -> [Memory] {
-        let vectorHits = try await vectorSearch(embedding: embedding, typeFilter: typeFilter, k: k)
-        let ftsHits = try await ftsSearch(query: keywordQuery, typeFilter: typeFilter, k: k)
+        async let vectorHits = vectorSearch(embedding: embedding, typeFilter: typeFilter, k: k)
+        async let ftsHits = ftsSearch(query: keywordQuery, typeFilter: typeFilter, k: k)
 
-        // Reciprocal Rank Fusion (RRF) merge.
+        let vec = try await vectorHits
+        let fts = try await ftsHits
+
+        // Reciprocal Rank Fusion.
         let c: Double = 60
         var score: [String: Double] = [:]
-        for (rank, id) in vectorHits.enumerated() {
+        for (rank, id) in vec.enumerated() {
             score[id, default: 0] += 1.0 / (c + Double(rank) + 1)
         }
-        for (rank, id) in ftsHits.enumerated() {
+        for (rank, id) in fts.enumerated() {
             score[id, default: 0] += 1.0 / (c + Double(rank) + 1)
         }
 
@@ -169,31 +162,31 @@ actor MemoryStore {
         return results
     }
 
-    private func vectorSearch(embedding: [Float], typeFilter: MemoryType?, k: Int) async throws -> [String] {
-        // sqlite-vec requires k set via `k = ?` AND a LIMIT; select from memory_vectors then optionally filter via join.
-        let rows: [[String: any Sendable]]
+    private func vectorSearch(embedding query: [Float], typeFilter: MemoryType?, k: Int) async throws -> [String] {
+        let sql: String
+        let params: [any Sendable]
         if let tf = typeFilter {
-            rows = try await db.query(
-                """
-                SELECT v.id AS id
-                FROM memory_vectors v
-                JOIN memories m ON m.id = v.id
-                WHERE v.embedding MATCH ? AND k = ? AND m.type = ?
-                ORDER BY v.distance;
-                """,
-                params: [embedding, k * 2, tf.rawValue]
-            )
+            sql = "SELECT id, embedding FROM memories WHERE type = ? AND embedding IS NOT NULL;"
+            params = [tf.rawValue]
         } else {
-            rows = try await db.query(
-                """
-                SELECT id FROM memory_vectors
-                WHERE embedding MATCH ? AND k = ?
-                ORDER BY distance;
-                """,
-                params: [embedding, k * 2]
-            )
+            sql = "SELECT id, embedding FROM memories WHERE embedding IS NOT NULL;"
+            params = []
         }
-        return rows.compactMap { $0["id"] as? String }
+        let rows = try await db.query(sql, params: params)
+        var scored: [(String, Float)] = []
+        scored.reserveCapacity(rows.count)
+        for row in rows {
+            guard
+                let id = row["id"] as? String,
+                let blob = row["embedding"] as? Data
+            else { continue }
+            let vec = Self.decode(blob)
+            if vec.count != query.count { continue }
+            let sim = Self.cosine(vec, query)
+            scored.append((id, sim))
+        }
+        scored.sort { $0.1 > $1.1 }
+        return scored.prefix(k).map { $0.0 }
     }
 
     private func ftsSearch(query: String, typeFilter: MemoryType?, k: Int) async throws -> [String] {
@@ -224,6 +217,8 @@ actor MemoryStore {
         return rows.compactMap { $0["id"] as? String }
     }
 
+    // MARK: - Helpers
+
     private static func sanitizeFTS(_ input: String) -> String {
         let tokens = input
             .lowercased()
@@ -233,7 +228,31 @@ actor MemoryStore {
         return tokens.map { "\($0)*" }.joined(separator: " ")
     }
 
-    // MARK: - Helpers
+    private static func encode(_ vec: [Float]) -> Data {
+        vec.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+
+    private static func decode(_ data: Data) -> [Float] {
+        let count = data.count / MemoryLayout<Float>.size
+        return data.withUnsafeBytes { raw -> [Float] in
+            let buf = raw.bindMemory(to: Float.self)
+            return Array(UnsafeBufferPointer(start: buf.baseAddress, count: count))
+        }
+    }
+
+    private static func cosine(_ a: [Float], _ b: [Float]) -> Float {
+        var dot: Float = 0
+        var na: Float = 0
+        var nb: Float = 0
+        for i in 0..<a.count {
+            dot += a[i] * b[i]
+            na += a[i] * a[i]
+            nb += b[i] * b[i]
+        }
+        let denom = sqrt(na) * sqrt(nb)
+        if denom == 0 { return 0 }
+        return dot / denom
+    }
 
     private static func memoryFromRow(_ row: [String: any Sendable]) -> Memory? {
         guard

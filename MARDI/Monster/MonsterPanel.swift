@@ -4,6 +4,7 @@ import SwiftUI
 /// The floating NSPanel that hosts the monster. Non-activating (won't steal
 /// focus from the foreground app), borderless, translucent, floats above
 /// everything, joins every space.
+@MainActor
 final class MonsterPanel: NSPanel {
     private var hostingView: NSHostingView<AnyView>?
 
@@ -63,12 +64,15 @@ final class MonsterPanel: NSPanel {
     }
 
     func fadeOutAndClose() {
-        NSAnimationContext.runAnimationGroup({ ctx in
+        NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.15
             self.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            self?.orderOut(nil)
-            self?.alphaValue = 1
-        })
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 170_000_000)
+            guard let self else { return }
+            self.orderOut(nil)
+            self.alphaValue = 1
+        }
     }
 }

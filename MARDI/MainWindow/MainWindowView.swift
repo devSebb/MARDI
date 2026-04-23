@@ -86,6 +86,17 @@ struct MainWindowView: View {
             if let err = env.bootError {
                 Text("⚠ \(err)").monoFont(10).foregroundStyle(Palette.rust)
             }
+
+            SettingsLink {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .help("Open Settings (⌘,)")
+            .keyboardShortcut(",", modifiers: .command)
         }
         .frame(height: 40)
         .background(Palette.panelSlate)
