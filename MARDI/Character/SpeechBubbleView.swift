@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Pixel-terminal speech bubble with typewriter text reveal. Tail points at Mardi.
+/// Pixel-neon terminal speech bubble. Hard edges, cyan text on void-black,
+/// magenta pixel border. Braille prefix marks the speaker.
 struct SpeechBubbleView: View {
     let text: String
-    var tailSide: Edge = .leading   // tail on the left side, pointing at robot
+    var tailSide: Edge = .leading   // tail on the left, pointing at the fish
     var revealSpeed: Double = 0.025 // seconds per character
 
     @State private var revealed: Int = 0
@@ -22,39 +23,28 @@ struct SpeechBubbleView: View {
             if tailSide == .leading {
                 tailView
             }
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .lastTextBaseline, spacing: 2) {
-                    Text("› ")
-                        .monoFont(12, weight: .bold)
-                        .foregroundStyle(Palette.pink)
-                    Text(displayed)
-                        .monoFont(12)
-                        .foregroundStyle(Palette.bone)
-                    if blink {
-                        Rectangle()
-                            .fill(Palette.pink)
-                            .frame(width: 7, height: 12)
-                            .opacity(isRevealing ? 0.9 : (blink ? 0.9 : 0.2))
-                    }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("⠿")
+                    .monoFont(10)
+                    .foregroundStyle(Palette.textMuted)
+                Text(displayed)
+                    .monoFont(12)
+                    .foregroundStyle(Palette.textPrimary)
+                if blink || isRevealing {
+                    Rectangle()
+                        .fill(Palette.neonCyan)
+                        .frame(width: 7, height: 12)
+                        .opacity(isRevealing ? 0.9 : (blink ? 0.8 : 0.0))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Palette.bubbleBg)
-                    .brailleField(opacity: 0.04)
-                    .pixelBorder(color: Palette.pinkDim, glow: Palette.pink, cornerRadius: 2)
-            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Palette.bubbleBg)
             .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(.clear)
-                    .scanlines(opacity: 0.03, spacing: 2)
-                    .mask(
-                        RoundedRectangle(cornerRadius: 2)
-                    )
+                Scanlines(opacity: 0.08, spacing: 2)
+                    .allowsHitTesting(false)
             )
-            .crtGlow(color: Palette.pink, radius: 5, intensity: 0.12)
+            .pixelBorder(Palette.borderBright, width: 1, radius: 0)
 
             if tailSide == .trailing {
                 tailView
@@ -82,7 +72,7 @@ struct SpeechBubbleView: View {
             .fill(Palette.bubbleBg)
             .overlay(
                 Triangle(pointing: tailSide == .leading ? .left : .right)
-                    .stroke(Palette.pinkDim, lineWidth: 1.5)
+                    .stroke(Palette.borderBright, lineWidth: 1)
             )
             .frame(width: 10, height: 14)
     }
@@ -128,6 +118,6 @@ private struct Triangle: Shape {
         SpeechBubbleView(text: "Hi. I'm Mardi. I'll remember things for you.")
         SpeechBubbleView(text: "Got it. Saved to Signatures.")
     }
-    .padding()
+    .padding(20)
     .background(Palette.charcoal)
 }

@@ -7,6 +7,21 @@ struct TagResult: Codable, Sendable, Equatable {
     var summary: String     // ≤ 140 chars
 }
 
+/// Optional model suggestions for normalizing a raw capture before it is
+/// persisted. The app validates these fields before accepting them.
+struct CaptureSuggestion: Codable, Sendable, Equatable {
+    var type: String?
+    var title: String?
+    var tags: [String]?
+    var summary: String?
+    var body: String?
+}
+
+struct LLMChatMessage: Codable, Sendable, Equatable {
+    var role: String
+    var content: String
+}
+
 /// Abstract interface for any LLM provider. Implementations must honour the
 /// same TagResult contract regardless of model quirks — do JSON validation
 /// and fallback inside the provider, not in the caller.
@@ -16,6 +31,13 @@ protocol LLMProvider: Sendable {
 
     /// Produce a title, tag set, and one-line summary for the given memory.
     func tagAndTitle(_ memory: Memory) async throws -> TagResult
+
+    /// Suggest a normalized type and metadata for a raw capture. Callers must
+    /// validate the result and keep deterministic fallbacks.
+    func normalizeCapture(_ capture: RawCapture) async throws -> CaptureSuggestion
+
+    /// Run a general chat turn for the dashboard agent.
+    func completeChat(system: String, messages: [LLMChatMessage], maxTokens: Int) async throws -> String
 
     /// Quick liveness check. Should round-trip a trivial request and return
     /// true only if the provider is correctly configured and reachable.
@@ -88,5 +110,83 @@ enum TaggingPrompt {
             ? "\(memory.type.displayName) · \(String(head.prefix(40)))"
             : memory.title
         return TagResult(title: title, tags: [memory.type.rawValue], summary: String(head.prefix(140)))
+    }
+}
+
+/// Shared prompt for safe capture normalization. It lets the provider improve
+/// metadata and suggest a better type while preserving the original content.
+enum CaptureNormalizationPrompt {
+    static let system = """
+    You are Mardi, a careful second-brain companion. Normalize a user's raw
+    capture into metadata that is safe to store in an Obsidian-like vault.
+
+    Goals:
+    - choose the best type only when there is clear evidence
+    - produce a concise factual title
+    - produce topical kebab-case tags
+    - produce a one-line summary
+    - preserve the user's content; do not invent details, commands, URLs, or facts
+
+    Allowed types: url, snippet, ssh, prompt, signature, reply, note
+
+    Respond with JSON only, matching this exact schema:
+    {
+      "type": "one of the allowed types",
+      "title": "string, <= 60 chars, no trailing punctuation",
+      "tags": ["kebab-case", "0 to 7 items"],
+      "summary": "string, <= 140 chars, single sentence",
+      "body": "string, usually the original content unchanged"
+    }
+
+    Keep `body` unchanged unless a tiny cleanup is obviously safe, such as
+    trimming accidental surrounding whitespace.
+    """
+
+    static func userPayload(_ capture: RawCapture) -> String {
+        var lines: [String] = []
+        lines.append("Requested type: \(capture.requestedType.rawValue)")
+        if let url = capture.sourceURL { lines.append("Source URL: \(url)") }
+        if let app = capture.sourceApp { lines.append("Captured from app: \(app)") }
+        if !capture.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("User title: \(capture.title)")
+        }
+        if !capture.tags.isEmpty {
+            lines.append("User tags: \(capture.tags.joined(separator: ", "))")
+        }
+        lines.append("")
+        lines.append("Content:")
+        lines.append(capture.body)
+        return lines.joined(separator: "\n")
+    }
+}
+
+enum LLMJSONParser {
+    static func parse<T: Decodable>(_ text: String, as type: T.Type) throws -> T {
+        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("```") {
+            if let firstNewline = s.firstIndex(of: "\n") {
+                s = String(s[s.index(after: firstNewline)...])
+            }
+            if let fenceEnd = s.range(of: "```", options: .backwards) {
+                s = String(s[..<fenceEnd.lowerBound])
+            }
+        }
+        guard let data = s.data(using: .utf8) else {
+            throw LLMError.invalidResponse("non-utf8 JSON")
+        }
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            if let start = s.firstIndex(of: "{"),
+               let end = s.lastIndex(of: "}"),
+               start < end {
+                let slice = String(s[start...end])
+                if let d2 = slice.data(using: .utf8),
+                   let decoded = try? JSONDecoder().decode(T.self, from: d2) {
+                    return decoded
+                }
+            }
+            throw LLMError.invalidResponse("could not parse JSON payload: \(error.localizedDescription)")
+        }
     }
 }

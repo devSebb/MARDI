@@ -13,9 +13,11 @@ final class AppEnvironment: ObservableObject {
     let store: MemoryStore
     let embedder: Embedder
     let search: SearchService
+    let agent: MardiAgentWorkspace
     let activeAppWatcher = ActiveAppWatcher()
 
     @Published var countsByType: [MemoryType: Int] = [:]
+    @Published var countsByFolder: [String: Int] = [:]
     @Published var recentMemories: [Memory] = []
     @Published var bootError: String? = nil
     @Published var lastToast: String? = nil
@@ -32,7 +34,7 @@ final class AppEnvironment: ObservableObject {
             try await store.setup()
             return await AppEnvironment(vault: vault, store: store, embedder: embedder)
         } catch {
-            return await AppEnvironment(failureMessage: "Failed to open vault: \(error.localizedDescription)")
+            return await AppEnvironment(failureMessage: "Failed to open vault: \(Self.describe(error))")
         }
     }
 
@@ -41,7 +43,11 @@ final class AppEnvironment: ObservableObject {
         self.store = store
         self.embedder = embedder
         self.search = SearchService(store: store, embedder: embedder)
+        self.agent = MardiAgentWorkspace(vault: vault, settings: settings, search: self.search)
+        await self.replayPendingMemories()
+        await self.importVaultMemories()
         await self.refresh()
+        await self.agent.load()
     }
 
     /// Degraded constructor. Creates an in-memory store so the rest of the app
@@ -63,6 +69,7 @@ final class AppEnvironment: ObservableObject {
         self.store = safeStore
         self.embedder = embedder
         self.search = SearchService(store: safeStore, embedder: embedder)
+        self.agent = MardiAgentWorkspace(vault: safeVault, settings: settings, search: self.search)
         self.bootError = failureMessage
     }
 
@@ -71,43 +78,42 @@ final class AppEnvironment: ObservableObject {
     func refresh() async {
         do {
             let counts = try await store.countsByType()
+            let folderCounts = try await store.countsByFolder()
             let recent = try await store.all(limit: 40)
             self.countsByType = counts
+            self.countsByFolder = folderCounts
             self.recentMemories = recent
         } catch {
-            self.bootError = error.localizedDescription
+            self.bootError = Self.describe(error)
         }
     }
 
-    func save(_ memory: Memory, autoEnrich: Bool = true) async -> Memory? {
-        let enriched: Memory
-        if autoEnrich && settings.hasAPIKey {
-            let tagger = Tagger(provider: settings.buildProvider())
-            enriched = await tagger.enrich(memory)
-        } else {
-            var m = memory
-            if m.title.isEmpty {
-                let fb = TaggingPrompt.fallback(for: m)
-                m.title = fb.title
-                if m.tags.isEmpty { m.tags = fb.tags }
-                m.summary = fb.summary
-            }
-            enriched = m
-        }
-
+    func save(_ capture: RawCapture, autoEnrich: Bool = true) async -> Memory? {
         do {
-            let written = try vault.write(enriched)
-            let embed = embedder.embed(
-                [written.title, written.tags.joined(separator: " "), written.body].joined(separator: "\n")
-            )
-            try await store.upsert(written, embedding: embed)
+            let normalized = await normalize(capture, autoEnrich: autoEnrich)
+            let written = try await persistNormalized(normalized)
             await refresh()
             lastToast = MardiVoice.savedTo(written.type)
             return written
         } catch {
-            self.bootError = "Save failed: \(error.localizedDescription)"
+            self.bootError = "Save failed: \(Self.describe(error))"
             return nil
         }
+    }
+
+    func save(_ memory: Memory, autoEnrich: Bool = true) async -> Memory? {
+        let capture = RawCapture(
+            id: memory.id,
+            requestedType: memory.type,
+            title: memory.title,
+            body: memory.body,
+            tags: memory.tags,
+            folder: memory.folder,
+            sourceApp: memory.sourceApp,
+            sourceURL: memory.sourceURL,
+            created: memory.created
+        )
+        return await save(capture, autoEnrich: autoEnrich)
     }
 
     func delete(_ memory: Memory) async {
@@ -116,7 +122,125 @@ final class AppEnvironment: ObservableObject {
             try await store.delete(id: memory.id)
             await refresh()
         } catch {
-            self.bootError = "Delete failed: \(error.localizedDescription)"
+            self.bootError = "Delete failed: \(Self.describe(error))"
         }
     }
+
+    func update(_ memory: Memory, refreshAfter: Bool = true) async -> Memory? {
+        do {
+            let written = try await persistNormalized(memory)
+            if refreshAfter {
+                await refresh()
+                lastToast = "Updated \(written.type.displayName.lowercased())"
+            }
+            return written
+        } catch {
+            self.bootError = "Update failed: \(Self.describe(error))"
+            return nil
+        }
+    }
+
+    func renameFolder(from oldName: String, to newName: String) async -> Bool {
+        let target = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty, !target.isEmpty, source != target else { return false }
+
+        do {
+            let memories = try await store.all(folder: source, limit: 10_000)
+            guard !memories.isEmpty else { return true }
+            for memory in memories {
+                var updated = memory
+                updated.folder = target
+                _ = await update(updated, refreshAfter: false)
+            }
+            await refresh()
+            lastToast = "Renamed folder to \(target)"
+            return true
+        } catch {
+            self.bootError = "Rename failed: \(Self.describe(error))"
+            return false
+        }
+    }
+
+    private static func describe(_ error: any Error) -> String {
+        let ns = error as NSError
+        let localized = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if localized != "The operation couldn’t be completed." && localized != "The operation could not be completed." {
+            return localized
+        }
+        return String(describing: error)
+    }
+
+    private func normalize(_ capture: RawCapture, autoEnrich: Bool) async -> Memory {
+        let provider = (autoEnrich && settings.hasAPIKey) ? settings.buildProvider() : nil
+        let normalizer = CaptureNormalizer(provider: provider)
+        return await normalizer.normalize(capture, allowLLM: autoEnrich && settings.hasAPIKey)
+    }
+
+    private func persistNormalized(_ memory: Memory) async throws -> Memory {
+        try vault.stagePending(memory)
+        let written = try vault.write(memory)
+        let embed = embedder.embed(
+            [written.title, written.tags.joined(separator: " "), written.body].joined(separator: "\n")
+        )
+        try await store.upsert(written, embedding: embed)
+        try vault.removePending(id: written.id)
+        return written
+    }
+
+    private func replayPendingMemories() async {
+        let pending: [Memory]
+        do {
+            pending = try vault.pendingMemories()
+        } catch {
+            self.bootError = "Pending replay failed: \(Self.describe(error))"
+            return
+        }
+
+        guard !pending.isEmpty else { return }
+        for memory in pending {
+            do {
+                _ = try await persistNormalized(memory)
+            } catch {
+                self.bootError = "Pending replay failed: \(Self.describe(error))"
+                return
+            }
+        }
+    }
+
+    private func importVaultMemories() async {
+        let indexedPaths: Set<String>
+        do {
+            indexedPaths = try await store.indexedMarkdownPaths()
+        } catch {
+            self.bootError = "Vault import failed: \(Self.describe(error))"
+            return
+        }
+
+        let vaultMemories: [Memory]
+        do {
+            vaultMemories = try vault.allMemories()
+        } catch {
+            self.bootError = "Vault import failed: \(Self.describe(error))"
+            return
+        }
+
+        let missing = vaultMemories.filter { !indexedPaths.contains($0.markdownPath) }
+        guard !missing.isEmpty else { return }
+
+        for memory in missing {
+            do {
+                let embedding = embedder.embed(
+                    [memory.title, memory.tags.joined(separator: " "), memory.body].joined(separator: "\n")
+                )
+                try await store.upsert(memory, embedding: embedding)
+            } catch {
+                self.bootError = "Vault import failed: \(Self.describe(error))"
+                return
+            }
+        }
+
+        lastToast = "Imported \(missing.count) existing memories"
+    }
+
 }

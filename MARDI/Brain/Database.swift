@@ -9,6 +9,22 @@ import SQLiteVec
 /// isn't supported there) and is plenty fast for v0-scale vaults.
 actor MemoryStore {
     private let db: Database
+    private static let memorySelect = """
+        SELECT
+            id,
+            type,
+            COALESCE(title, '') AS title,
+            COALESCE(summary, '') AS summary,
+            COALESCE(body, '') AS body,
+            COALESCE(tags, '[]') AS tags,
+            COALESCE(folder, '') AS folder,
+            COALESCE(source_app, '') AS source_app,
+            COALESCE(source_url, '') AS source_url,
+            COALESCE(thumbnail_path, '') AS thumbnail_path,
+            created,
+            markdown_path
+        FROM memories
+        """
 
     init(path: URL) async throws {
         try SQLiteVec.initialize()
@@ -27,6 +43,7 @@ actor MemoryStore {
                 summary TEXT,
                 body TEXT NOT NULL,
                 tags TEXT,
+                folder TEXT,
                 source_app TEXT,
                 source_url TEXT,
                 thumbnail_path TEXT,
@@ -36,8 +53,19 @@ actor MemoryStore {
             );
             """
         )
+        try await ensureColumnExists(
+            table: "memories",
+            column: "embedding",
+            definition: "BLOB"
+        )
+        try await ensureColumnExists(
+            table: "memories",
+            column: "folder",
+            definition: "TEXT"
+        )
         try await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);")
         try await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created DESC);")
+        try await db.execute("CREATE INDEX IF NOT EXISTS idx_memories_folder ON memories(folder);")
 
         try await db.execute(
             """
@@ -57,15 +85,18 @@ actor MemoryStore {
 
     func upsert(_ m: Memory, embedding: [Float]) async throws {
         let tagsJSON = (try? String(data: JSONEncoder().encode(m.tags), encoding: .utf8)) ?? "[]"
-        let createdMs = Int64(m.created.timeIntervalSince1970 * 1000)
+        // SQLiteVec's binder narrows Int parameters through sqlite3_bind_int,
+        // so epoch milliseconds overflow Int32. Store epoch seconds instead
+        // and read both seconds + legacy milliseconds transparently.
+        let createdEpoch = Int(m.created.timeIntervalSince1970)
         let blob = Self.encode(embedding)
 
         try await db.execute(
             """
             INSERT OR REPLACE INTO memories
-            (id, type, title, summary, body, tags, source_app, source_url,
+            (id, type, title, summary, body, tags, folder, source_app, source_url,
              thumbnail_path, created, markdown_path, embedding)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
             params: [
                 m.id,
@@ -74,10 +105,11 @@ actor MemoryStore {
                 m.summary ?? "",
                 m.body,
                 tagsJSON,
+                m.folder ?? "",
                 m.sourceApp ?? "",
                 m.sourceURL ?? "",
                 m.thumbnailPath ?? "",
-                createdMs,
+                createdEpoch,
                 m.markdownPath,
                 blob
             ]
@@ -97,16 +129,26 @@ actor MemoryStore {
 
     // MARK: - Read
 
-    func all(type: MemoryType? = nil, limit: Int = 500) async throws -> [Memory] {
+    func all(type: MemoryType? = nil, folder: String? = nil, limit: Int = 500) async throws -> [Memory] {
         let rows: [[String: any Sendable]]
-        if let t = type {
+        if let t = type, let folder, !folder.isEmpty {
             rows = try await db.query(
-                "SELECT * FROM memories WHERE type = ? ORDER BY created DESC LIMIT ?;",
+                "\(Self.memorySelect) WHERE type = ? AND folder = ? ORDER BY created DESC LIMIT ?;",
+                params: [t.rawValue, folder, limit]
+            )
+        } else if let t = type {
+            rows = try await db.query(
+                "\(Self.memorySelect) WHERE type = ? ORDER BY created DESC LIMIT ?;",
                 params: [t.rawValue, limit]
+            )
+        } else if let folder, !folder.isEmpty {
+            rows = try await db.query(
+                "\(Self.memorySelect) WHERE folder = ? ORDER BY created DESC LIMIT ?;",
+                params: [folder, limit]
             )
         } else {
             rows = try await db.query(
-                "SELECT * FROM memories ORDER BY created DESC LIMIT ?;",
+                "\(Self.memorySelect) ORDER BY created DESC LIMIT ?;",
                 params: [limit]
             )
         }
@@ -114,7 +156,7 @@ actor MemoryStore {
     }
 
     func get(id: String) async throws -> Memory? {
-        let rows = try await db.query("SELECT * FROM memories WHERE id = ?;", params: [id])
+        let rows = try await db.query("\(Self.memorySelect) WHERE id = ?;", params: [id])
         return rows.first.flatMap(Self.memoryFromRow)
     }
 
@@ -131,11 +173,41 @@ actor MemoryStore {
         return out
     }
 
+    func countsByFolder() async throws -> [String: Int] {
+        let rows = try await db.query(
+            """
+            SELECT folder, COUNT(*) as c
+            FROM memories
+            WHERE folder IS NOT NULL AND folder != ''
+            GROUP BY folder
+            ORDER BY c DESC, folder COLLATE NOCASE ASC;
+            """
+        )
+        var out: [String: Int] = [:]
+        for row in rows {
+            guard let folder = row["folder"] as? String, !folder.isEmpty else { continue }
+            let count = (row["c"] as? Int64).map(Int.init) ?? (row["c"] as? Int) ?? 0
+            out[folder] = count
+        }
+        return out
+    }
+
+    func indexedMarkdownPaths() async throws -> Set<String> {
+        let rows = try await db.query("SELECT markdown_path FROM memories;")
+        return Set(rows.compactMap { $0["markdown_path"] as? String })
+    }
+
     // MARK: - Hybrid search
 
-    func search(embedding: [Float], keywordQuery: String, typeFilter: MemoryType? = nil, k: Int = 20) async throws -> [Memory] {
-        async let vectorHits = vectorSearch(embedding: embedding, typeFilter: typeFilter, k: k)
-        async let ftsHits = ftsSearch(query: keywordQuery, typeFilter: typeFilter, k: k)
+    func search(
+        embedding: [Float],
+        keywordQuery: String,
+        typeFilter: MemoryType? = nil,
+        folderFilter: String? = nil,
+        k: Int = 20
+    ) async throws -> [Memory] {
+        async let vectorHits = vectorSearch(embedding: embedding, typeFilter: typeFilter, folderFilter: folderFilter, k: k)
+        async let ftsHits = ftsSearch(query: keywordQuery, typeFilter: typeFilter, folderFilter: folderFilter, k: k)
 
         let vec = try await vectorHits
         let fts = try await ftsHits
@@ -162,12 +234,18 @@ actor MemoryStore {
         return results
     }
 
-    private func vectorSearch(embedding query: [Float], typeFilter: MemoryType?, k: Int) async throws -> [String] {
+    private func vectorSearch(embedding query: [Float], typeFilter: MemoryType?, folderFilter: String?, k: Int) async throws -> [String] {
         let sql: String
         let params: [any Sendable]
-        if let tf = typeFilter {
+        if let tf = typeFilter, let folderFilter, !folderFilter.isEmpty {
+            sql = "SELECT id, embedding FROM memories WHERE type = ? AND folder = ? AND embedding IS NOT NULL;"
+            params = [tf.rawValue, folderFilter]
+        } else if let tf = typeFilter {
             sql = "SELECT id, embedding FROM memories WHERE type = ? AND embedding IS NOT NULL;"
             params = [tf.rawValue]
+        } else if let folderFilter, !folderFilter.isEmpty {
+            sql = "SELECT id, embedding FROM memories WHERE folder = ? AND embedding IS NOT NULL;"
+            params = [folderFilter]
         } else {
             sql = "SELECT id, embedding FROM memories WHERE embedding IS NOT NULL;"
             params = []
@@ -189,12 +267,22 @@ actor MemoryStore {
         return scored.prefix(k).map { $0.0 }
     }
 
-    private func ftsSearch(query: String, typeFilter: MemoryType?, k: Int) async throws -> [String] {
+    private func ftsSearch(query: String, typeFilter: MemoryType?, folderFilter: String?, k: Int) async throws -> [String] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         let q = Self.sanitizeFTS(trimmed)
         let rows: [[String: any Sendable]]
-        if let tf = typeFilter {
+        if let tf = typeFilter, let folderFilter, !folderFilter.isEmpty {
+            rows = try await db.query(
+                """
+                SELECT f.id AS id FROM memories_fts f
+                JOIN memories m ON m.id = f.id
+                WHERE memories_fts MATCH ? AND m.type = ? AND m.folder = ?
+                ORDER BY rank LIMIT ?;
+                """,
+                params: [q, tf.rawValue, folderFilter, k]
+            )
+        } else if let tf = typeFilter {
             rows = try await db.query(
                 """
                 SELECT f.id AS id FROM memories_fts f
@@ -203,6 +291,16 @@ actor MemoryStore {
                 ORDER BY rank LIMIT ?;
                 """,
                 params: [q, tf.rawValue, k]
+            )
+        } else if let folderFilter, !folderFilter.isEmpty {
+            rows = try await db.query(
+                """
+                SELECT f.id AS id FROM memories_fts f
+                JOIN memories m ON m.id = f.id
+                WHERE memories_fts MATCH ? AND m.folder = ?
+                ORDER BY rank LIMIT ?;
+                """,
+                params: [q, folderFilter, k]
             )
         } else {
             rows = try await db.query(
@@ -218,6 +316,15 @@ actor MemoryStore {
     }
 
     // MARK: - Helpers
+
+    private func ensureColumnExists(table: String, column: String, definition: String) async throws {
+        let rows = try await db.query("PRAGMA table_info(\(table));")
+        let hasColumn = rows.contains { row in
+            (row["name"] as? String) == column
+        }
+        guard !hasColumn else { return }
+        try await db.execute("ALTER TABLE \(table) ADD COLUMN \(column) \(definition);")
+    }
 
     private static func sanitizeFTS(_ input: String) -> String {
         let tokens = input
@@ -264,11 +371,19 @@ actor MemoryStore {
             let markdownPath = row["markdown_path"] as? String
         else { return nil }
 
-        let createdMs: Int64 = (row["created"] as? Int64) ?? Int64((row["created"] as? Int) ?? 0)
-        let created = Date(timeIntervalSince1970: TimeInterval(createdMs) / 1000.0)
+        let createdRaw: Int64 = (row["created"] as? Int64) ?? Int64((row["created"] as? Int) ?? 0)
+        let created: Date
+        if createdRaw > 10_000_000_000 {
+            // Legacy rows written as epoch milliseconds.
+            created = Date(timeIntervalSince1970: TimeInterval(createdRaw) / 1000.0)
+        } else {
+            // New rows written as epoch seconds to avoid Int32 overflow in the wrapper.
+            created = Date(timeIntervalSince1970: TimeInterval(createdRaw))
+        }
         let summary = (row["summary"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let tagsJSON = row["tags"] as? String ?? "[]"
         let tags = (try? JSONDecoder().decode([String].self, from: Data(tagsJSON.utf8))) ?? []
+        let folder = (row["folder"] as? String).flatMap { $0.isEmpty ? nil : $0 }
 
         let sourceApp = (row["source_app"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let sourceURL = (row["source_url"] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -281,6 +396,7 @@ actor MemoryStore {
             summary: summary,
             body: body,
             tags: tags,
+            folder: folder,
             sourceApp: sourceApp,
             sourceURL: sourceURL,
             thumbnailPath: thumbnail,

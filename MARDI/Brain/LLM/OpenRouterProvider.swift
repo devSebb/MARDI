@@ -58,6 +58,93 @@ final class OpenRouterProvider: LLMProvider {
         return TaggingPrompt.sanitize(parsed)
     }
 
+    func normalizeCapture(_ capture: RawCapture) async throws -> CaptureSuggestion {
+        guard !apiKey.isEmpty else { throw LLMError.missingAPIKey }
+
+        var req = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 25
+        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        req.addValue("https://github.com/", forHTTPHeaderField: "HTTP-Referer")
+        req.addValue("MARDI", forHTTPHeaderField: "X-Title")
+
+        let body: [String: Any] = [
+            "model": model,
+            "max_tokens": 500,
+            "messages": [
+                ["role": "system", "content": CaptureNormalizationPrompt.system],
+                ["role": "user", "content": CaptureNormalizationPrompt.userPayload(capture)]
+            ],
+            "response_format": ["type": "json_object"]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw LLMError.invalidResponse("non-HTTP response")
+        }
+        if !(200..<300).contains(http.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw LLMError.httpStatus(http.statusCode, body)
+        }
+
+        guard
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let choices = obj["choices"] as? [[String: Any]],
+            let msg = choices.first?["message"] as? [String: Any],
+            let text = msg["content"] as? String
+        else {
+            throw LLMError.invalidResponse("missing content")
+        }
+
+        return try LLMJSONParser.parse(text, as: CaptureSuggestion.self)
+    }
+
+    func completeChat(system: String, messages: [LLMChatMessage], maxTokens: Int) async throws -> String {
+        guard !apiKey.isEmpty else { throw LLMError.missingAPIKey }
+
+        var req = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 35
+        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        req.addValue("https://github.com/", forHTTPHeaderField: "HTTP-Referer")
+        req.addValue("MARDI", forHTTPHeaderField: "X-Title")
+
+        let body: [String: Any] = [
+            "model": model,
+            "max_tokens": maxTokens,
+            "messages": [["role": "system", "content": system]]
+                + messages.map { ["role": $0.role, "content": $0.content] }
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw LLMError.invalidResponse("non-HTTP response")
+        }
+        if !(200..<300).contains(http.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw LLMError.httpStatus(http.statusCode, body)
+        }
+
+        guard
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let choices = obj["choices"] as? [[String: Any]],
+            let msg = choices.first?["message"] as? [String: Any],
+            let text = msg["content"] as? String
+        else {
+            throw LLMError.invalidResponse("missing content")
+        }
+
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            throw LLMError.invalidResponse("empty content")
+        }
+        return cleaned
+    }
+
     func ping() async -> Bool {
         guard !apiKey.isEmpty else { return false }
         let dummy = Memory(type: .note, title: "ping", body: "test")

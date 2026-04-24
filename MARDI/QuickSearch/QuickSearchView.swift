@@ -12,10 +12,32 @@ struct QuickSearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
+                Text("⣿⣿")
+                    .monoFont(12, weight: .bold)
+                    .foregroundStyle(Palette.neonMagenta)
+                Text("[MARDI::RECALL]")
+                    .monoFont(10, weight: .bold)
+                    .tracking(2)
+                    .foregroundStyle(Palette.neonCyan)
+                Spacer()
+                Text("⌘⇧M · ESC")
+                    .monoFont(9, weight: .bold)
+                    .tracking(1.3)
+                    .foregroundStyle(Palette.textMuted)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(Palette.panelSlateHi)
+
+            BrailleDivider(color: Palette.neonMagenta.opacity(0.4))
+                .padding(.horizontal, 4)
+
+            HStack(spacing: 12) {
                 Text("⠿")
-                    .monoFont(18, weight: .bold)
-                    .foregroundStyle(Palette.pink)
-                TextField("", text: $text, prompt: Text("Ask Mardi…").foregroundStyle(Palette.textMuted))
+                    .monoFont(14, weight: .bold)
+                    .foregroundStyle(Palette.neonCyan)
+                    .shadow(color: Palette.neonCyan.opacity(0.4), radius: 2)
+                TextField("", text: $text, prompt: Text("ask mardi…").foregroundStyle(Palette.textMuted))
                     .textFieldStyle(.plain)
                     .monoFont(16)
                     .foregroundStyle(Palette.textPrimary)
@@ -28,11 +50,11 @@ struct QuickSearchView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
 
-            Divider().background(Palette.rule)
+            BrailleDivider(color: Palette.border).padding(.horizontal, 4)
 
             if !results.isEmpty {
                 ScrollView {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 3) {
                         ForEach(Array(results.enumerated()), id: \.element.id) { idx, m in
                             Row(memory: m, isSelected: idx == selectedIndex) {
                                 selectedIndex = idx
@@ -40,34 +62,44 @@ struct QuickSearchView: View {
                             }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 6)
                 }
                 .frame(maxHeight: 320)
             } else if !text.isEmpty {
-                Text("nothing matching").monoFont(11).foregroundStyle(Palette.textMuted).padding(18)
+                HStack(spacing: 6) {
+                    Text("⠂")
+                        .monoFont(10, weight: .bold)
+                        .foregroundStyle(Palette.textMuted)
+                    Text("nothing matching").monoFont(11).foregroundStyle(Palette.textMuted)
+                }
+                .padding(20)
             } else {
-                Text("Type to search — Enter copies to clipboard.")
-                    .monoFont(11).foregroundStyle(Palette.textMuted).padding(18)
+                HStack(spacing: 6) {
+                    Text("⠂")
+                        .monoFont(10, weight: .bold)
+                        .foregroundStyle(Palette.textMuted)
+                    Text("Type to search · Enter copies to clipboard.")
+                        .monoFont(11).foregroundStyle(Palette.textMuted)
+                }
+                .padding(20)
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Palette.panelSlate)
-                .brailleField(opacity: 0.04)
-                .pixelBorder(color: Palette.ruleHi, glow: Palette.pink, cornerRadius: 2)
+            ZStack {
+                Palette.panelSlate
+                BrailleField(color: Palette.brailleDim, opacity: 0.45, fontSize: 11, density: 0.32)
+                Scanlines(opacity: 0.09, spacing: 3)
+            }
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 2)
-                .stroke(.clear)
-                .scanlines(opacity: 0.03, spacing: 3)
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-                .allowsHitTesting(false)
-        )
-        .frame(width: 560)
+        .pixelBorder(Palette.neonMagenta, width: 1.5, lit: true, radius: 0)
+        .shadow(color: Palette.neonMagenta.opacity(0.30), radius: 10, y: 5)
+        .shadow(color: Palette.neonCyan.opacity(0.12), radius: 14)
+        .frame(width: 580)
         .colorScheme(.dark)
         .onAppear { focused = true }
         .task(id: text) {
-            try? await Task.sleep(nanoseconds: 100_000_000) // small debounce
+            try? await Task.sleep(nanoseconds: 100_000_000)
             await reload()
         }
     }
@@ -106,28 +138,43 @@ private struct Row: View {
     var body: some View {
         Button(action: onClick) {
             HStack(spacing: 10) {
-                Text(memory.type.brailleGlyph)
-                    .monoFont(15, weight: .bold)
-                    .foregroundStyle(memory.type.accent)
-                    .frame(width: 18)
+                VStack(spacing: 1) {
+                    Text(memory.type.glyph)
+                        .monoFont(12, weight: .bold)
+                        .foregroundStyle(memory.type.accent)
+                    Text(memory.type.shortCode)
+                        .monoFont(7, weight: .bold)
+                        .tracking(0.8)
+                        .foregroundStyle(memory.type.accent.opacity(0.7))
+                }
+                .frame(width: 24)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(memory.title).monoFont(12, weight: .bold)
-                        .foregroundStyle(isSelected ? Palette.pink : Palette.textPrimary)
+                        .foregroundStyle(isSelected ? Palette.neonCyan : Palette.textPrimary)
                         .lineLimit(1)
                     if let s = memory.summary {
                         Text(s).bodyFont(10).lineLimit(1).foregroundStyle(Palette.textMuted)
                     }
                 }
                 Spacer()
-                Text(memory.type.displayName.uppercased()).monoFont(9).foregroundStyle(memory.type.accent.opacity(0.8))
+                if isSelected {
+                    Text("⏎")
+                        .monoFont(10, weight: .bold)
+                        .foregroundStyle(Palette.neonCyan)
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(isSelected ? Palette.pink.opacity(0.12) : Color.clear)
-                    .pixelBorder(color: isSelected ? Palette.pink.opacity(0.7) : .clear, cornerRadius: 2)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isSelected ? Palette.neonCyan.opacity(0.10) : Color.clear)
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    Rectangle()
+                        .fill(Palette.neonCyan)
+                        .frame(width: 2)
+                        .shadow(color: Palette.neonCyan.opacity(0.55), radius: 1.5)
+                }
+            }
         }
         .buttonStyle(.plain)
     }

@@ -7,6 +7,7 @@ struct Memory: Identifiable, Hashable, Codable, Sendable {
     var summary: String?
     var body: String
     var tags: [String]
+    var folder: String?
     var sourceApp: String?
     var sourceURL: String?
     var thumbnailPath: String?
@@ -20,6 +21,7 @@ struct Memory: Identifiable, Hashable, Codable, Sendable {
         summary: String? = nil,
         body: String,
         tags: [String] = [],
+        folder: String? = nil,
         sourceApp: String? = nil,
         sourceURL: String? = nil,
         thumbnailPath: String? = nil,
@@ -32,6 +34,7 @@ struct Memory: Identifiable, Hashable, Codable, Sendable {
         self.summary = summary
         self.body = body
         self.tags = tags
+        self.folder = folder
         self.sourceApp = sourceApp
         self.sourceURL = sourceURL
         self.thumbnailPath = thumbnailPath
