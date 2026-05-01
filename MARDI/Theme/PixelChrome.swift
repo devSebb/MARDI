@@ -26,11 +26,13 @@ enum Braille {
 
 // MARK: - Pixel border
 
-/// Hard-edge pixel border. Draws two concentric strokes — outer accent, inner
-/// shadow — to give a chunky "pixel art" frame. Optional outer bloom when lit.
+/// Hard-edge pixel border. Hermes-pass: defaults are quiet — single 1px stroke
+/// in the bone-rule color, no glow. Pass `lit: true` for the one-radius pink
+/// halo that signals an active surface (focus, selected drawer, toast).
+/// The double-stroke (outer + inner shadow) is reserved for `lit` surfaces only.
 struct PixelBorder: ViewModifier {
-    var color: Color = Palette.neonCyan
-    var width: CGFloat = 1.5
+    var color: Color = Palette.border
+    var width: CGFloat = 1
     var lit: Bool = false
     var radius: CGFloat = 0
 
@@ -43,15 +45,14 @@ struct PixelBorder: ViewModifier {
             .overlay(
                 RoundedRectangle(cornerRadius: radius)
                     .inset(by: width)
-                    .strokeBorder(Color.black.opacity(0.55), lineWidth: 1)
+                    .strokeBorder(lit ? Color.black.opacity(0.55) : Color.clear, lineWidth: lit ? 1 : 0)
             )
-            .shadow(color: lit ? color.opacity(0.45) : .clear, radius: lit ? 3 : 0)
-            .shadow(color: lit ? color.opacity(0.22) : .clear, radius: lit ? 7 : 0)
+            .shadow(color: lit ? color.opacity(0.35) : .clear, radius: lit ? 2 : 0)
     }
 }
 
 extension View {
-    func pixelBorder(_ color: Color = Palette.neonCyan, width: CGFloat = 1.5, lit: Bool = false, radius: CGFloat = 0) -> some View {
+    func pixelBorder(_ color: Color = Palette.border, width: CGFloat = 1, lit: Bool = false, radius: CGFloat = 0) -> some View {
         modifier(PixelBorder(color: color, width: width, lit: lit, radius: radius))
     }
 }
@@ -86,8 +87,16 @@ struct BrailleField: View {
     var fontSize: CGFloat = 11
     var density: Double = 0.55   // 0 = sparse, 1 = dense
 
+    /// Hermes-pass caps. The braille texture is the soul of the pixel-CRT vibe,
+    /// but call-sites historically cranked it past readability. Clamp here so
+    /// no individual surface can wallpaper itself.
+    private static let densityCap: Double = 0.30
+    private static let opacityCap: Double = 0.45
+
     var body: some View {
-        GeometryReader { geo in
+        let effDensity = min(density, Self.densityCap)
+        let effOpacity = min(opacity, Self.opacityCap)
+        return GeometryReader { geo in
             Canvas { ctx, size in
                 let cellW: CGFloat = fontSize * 0.72
                 let cellH: CGFloat = fontSize * 1.10
@@ -98,13 +107,13 @@ struct BrailleField: View {
                     for c in 0..<cols {
                         let seed = (r &* 31) &+ c
                         let bucket = Double((seed &* 2654435761) & 0xFFFF) / 65535.0
-                        guard bucket < density else { continue }
+                        guard bucket < effDensity else { continue }
                         let glyph = Braille.pseudoRandom(seed)
                         let x = CGFloat(c) * cellW
                         let y = CGFloat(r) * cellH
                         let text = Text(glyph)
                             .font(.system(size: fontSize, design: .monospaced))
-                            .foregroundColor(color.opacity(opacity))
+                            .foregroundColor(color.opacity(effOpacity))
                         ctx.draw(text, at: CGPoint(x: x, y: y), anchor: .topLeading)
                     }
                 }
@@ -140,16 +149,17 @@ struct BrailleLabel: View {
 
 // MARK: - Neon panel background
 
-/// Standard MARDI panel: deep void fill, braille-field wallpaper, pixel border,
-/// scanlines on top. One-liner for every card / panel / overlay.
+/// Standard MARDI panel. Hermes-pass: defaults calm down — bone-rule border,
+/// braille and scanlines OFF by default. Surfaces that *want* texture explicitly
+/// opt in. Pink border is reserved for surfaces that mean "active" or "primary."
 struct NeonPanel: ViewModifier {
     var fill: Color = Palette.panelSlate
-    var border: Color = Palette.neonMagenta
-    var borderWidth: CGFloat = 1.5
+    var border: Color = Palette.border
+    var borderWidth: CGFloat = 1
     var radius: CGFloat = 0
     var lit: Bool = false
-    var braille: Bool = true
-    var scanlines: Bool = true
+    var braille: Bool = false
+    var scanlines: Bool = false
 
     func body(content: Content) -> some View {
         content
@@ -157,10 +167,10 @@ struct NeonPanel: ViewModifier {
                 ZStack {
                     Rectangle().fill(fill)
                     if braille {
-                        BrailleField(color: Palette.brailleDim, opacity: 0.45, fontSize: 11, density: 0.35)
+                        BrailleField(color: Palette.brailleDim, opacity: 0.30, fontSize: 11, density: 0.22)
                     }
                     if scanlines {
-                        Scanlines(opacity: 0.08, spacing: 3)
+                        Scanlines(opacity: 0.05, spacing: 3)
                     }
                 }
             )
@@ -172,12 +182,12 @@ struct NeonPanel: ViewModifier {
 extension View {
     func neonPanel(
         fill: Color = Palette.panelSlate,
-        border: Color = Palette.neonMagenta,
-        borderWidth: CGFloat = 1.5,
+        border: Color = Palette.border,
+        borderWidth: CGFloat = 1,
         radius: CGFloat = 0,
         lit: Bool = false,
-        braille: Bool = true,
-        scanlines: Bool = true
+        braille: Bool = false,
+        scanlines: Bool = false
     ) -> some View {
         modifier(NeonPanel(fill: fill, border: border, borderWidth: borderWidth, radius: radius, lit: lit, braille: braille, scanlines: scanlines))
     }
@@ -186,7 +196,7 @@ extension View {
 // MARK: - Pixel button style
 
 struct PixelButtonStyle: ButtonStyle {
-    var tint: Color = Palette.neonCyan
+    var tint: Color = Palette.neonMagenta
     var filled: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -195,17 +205,17 @@ struct PixelButtonStyle: ButtonStyle {
             .padding(.vertical, 7)
             .background(
                 Rectangle()
-                    .fill(filled ? tint.opacity(0.22) : tint.opacity(configuration.isPressed ? 0.18 : 0.08))
+                    .fill(filled ? tint.opacity(0.18) : tint.opacity(configuration.isPressed ? 0.14 : 0.06))
             )
-            .pixelBorder(tint, width: 1.5, lit: configuration.isPressed, radius: 0)
+            .pixelBorder(tint, width: 1, lit: configuration.isPressed, radius: 0)
             .foregroundStyle(tint)
-            .shadow(color: tint.opacity(configuration.isPressed ? 0.45 : 0.2), radius: configuration.isPressed ? 6 : 3)
+            .shadow(color: tint.opacity(configuration.isPressed ? 0.30 : 0), radius: configuration.isPressed ? 3 : 0)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
     }
 }
 
 extension ButtonStyle where Self == PixelButtonStyle {
-    static func pixel(_ tint: Color = Palette.neonCyan, filled: Bool = false) -> PixelButtonStyle {
+    static func pixel(_ tint: Color = Palette.neonMagenta, filled: Bool = false) -> PixelButtonStyle {
         PixelButtonStyle(tint: tint, filled: filled)
     }
 }
@@ -232,7 +242,7 @@ struct AgentHeader: View {
                 Text("⣿⣿")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(tint)
-                BrailleDivider(color: tint.opacity(0.40))
+                BrailleDivider(color: Palette.border)
             }
             if let subtitle {
                 Text(subtitle)
@@ -240,7 +250,7 @@ struct AgentHeader: View {
                     .tracking(1.2)
                     .foregroundStyle(Palette.textMuted)
             }
-            BrailleDivider(color: tint.opacity(0.45))
+            BrailleDivider(color: Palette.border)
         }
     }
 }

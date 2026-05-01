@@ -63,6 +63,10 @@ final class AppSettings: ObservableObject, @unchecked Sendable {
         didSet { ud.set(launchAtLogin, forKey: Keys.launchAtLogin) }
     }
 
+    @Published var hasOnboarded: Bool {
+        didSet { ud.set(hasOnboarded, forKey: Keys.hasOnboarded) }
+    }
+
     private init() {
         self.ud = .standard
         self.provider = LLMProviderKind(rawValue: ud.string(forKey: Keys.provider) ?? "") ?? .claude
@@ -72,6 +76,7 @@ final class AppSettings: ObservableObject, @unchecked Sendable {
         self.hotCorner = HotCornerPosition(rawValue: ud.string(forKey: Keys.hotCorner) ?? "") ?? .topRight
         self.dwellMs = (ud.object(forKey: Keys.dwellMs) as? Int) ?? 400
         self.launchAtLogin = ud.bool(forKey: Keys.launchAtLogin)
+        self.hasOnboarded = ud.bool(forKey: Keys.hasOnboarded)
     }
 
     // MARK: - Keys in Keychain
@@ -116,5 +121,6 @@ final class AppSettings: ObservableObject, @unchecked Sendable {
         static let hotCorner = "mardi.hotCorner"
         static let dwellMs = "mardi.dwellMs"
         static let launchAtLogin = "mardi.launchAtLogin"
+        static let hasOnboarded = "mardi.hasOnboarded"
     }
 }

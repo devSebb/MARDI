@@ -29,6 +29,14 @@ struct MARDIApp: App {
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
             }
+            CommandMenu("View") {
+                Button("Zoom In") { ZoomCommands.bump(+UIZoom.step) }
+                    .keyboardShortcut("=", modifiers: [.command])
+                Button("Zoom Out") { ZoomCommands.bump(-UIZoom.step) }
+                    .keyboardShortcut("-", modifiers: [.command])
+                Button("Actual Size") { ZoomCommands.reset() }
+                    .keyboardShortcut("0", modifiers: [.command])
+            }
         }
 
         // Menu bar extra (always visible)
@@ -141,6 +149,24 @@ struct BootScreen: View {
             }
         }
     }
+}
+
+/// Bridges menu commands to UserDefaults. The zoom value is read by
+/// `Typeface.*Font` at body-eval time; views that observe `@AppStorage(UIZoom.key)`
+/// rebuild when this changes, so the new size lights up immediately.
+enum ZoomCommands {
+    static func bump(_ delta: Double) {
+        let next = UIZoom.clamp((UserDefaults.standard.double(forKey: UIZoom.key).nonZero ?? UIZoom.defaultValue) + delta)
+        UserDefaults.standard.set(next, forKey: UIZoom.key)
+    }
+
+    static func reset() {
+        UserDefaults.standard.set(UIZoom.defaultValue, forKey: UIZoom.key)
+    }
+}
+
+private extension Double {
+    var nonZero: Double? { self == 0 ? nil : self }
 }
 
 struct MenuBarContent: View {

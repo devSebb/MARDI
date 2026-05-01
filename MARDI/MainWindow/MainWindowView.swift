@@ -35,8 +35,13 @@ struct MainWindowView: View {
     @State private var searchText: String = ""
     @State private var typeFilter: MemoryType? = nil
     @State private var folderFilter: String? = nil
+    @State private var dayFilter: Date? = nil
     @State private var selected: Memory? = nil
     @State private var memories: [Memory] = []
+    @State private var showOnboarding: Bool = false
+    /// Drives subtree re-render whenever zoom changes from anywhere
+    /// (menu, settings, another view). Typeface helpers read the same key.
+    @AppStorage(UIZoom.key) private var zoom: Double = UIZoom.defaultValue
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +55,7 @@ struct MainWindowView: View {
                     LibraryView(
                         typeFilter: $typeFilter,
                         folderFilter: $folderFilter,
+                        dayFilter: $dayFilter,
                         searchText: $searchText,
                         selected: $selected,
                         memories: memories
@@ -57,9 +63,9 @@ struct MainWindowView: View {
                 case .mardi:
                     MardiDashboardView(workspace: env.agent)
                 case .graph:
-                    GraphPlaceholderView()
+                    GraphView(tab: $tab, selectedMemory: $selected)
                 case .timeline:
-                    TimelinePlaceholderView()
+                    MardiTimelineView(tab: $tab, dayFilter: $dayFilter)
                 }
             }
         }
@@ -70,13 +76,30 @@ struct MainWindowView: View {
                 BrailleField(color: Palette.brailleDim, opacity: 0.35, fontSize: 12, density: 0.22)
             }
         )
+        .overlay {
+            ToastOverlay()
+        }
         .colorScheme(.dark)
-        .task(id: "\(typeFilter?.rawValue ?? "all")-\(folderFilter ?? "all-folders")-\(searchText)") {
+        .task(id: reloadKey) {
             await reload()
         }
         .task {
             await reload()
         }
+        .onAppear {
+            if !env.settings.hasOnboarded {
+                showOnboarding = true
+            }
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingSheet()
+                .environmentObject(env)
+        }
+    }
+
+    private var reloadKey: String {
+        let day = dayFilter.map { String(Int($0.timeIntervalSince1970)) } ?? "any"
+        return "\(typeFilter?.rawValue ?? "all")-\(folderFilter ?? "all-folders")-\(day)-\(searchText)"
     }
 
     private var tabBar: some View {
@@ -173,46 +196,26 @@ struct MainWindowView: View {
     }
 
     private func reload() async {
-        if searchText.isEmpty && typeFilter == nil && folderFilter == nil {
+        if searchText.isEmpty && typeFilter == nil && folderFilter == nil && dayFilter == nil {
             memories = env.recentMemories
-        } else {
-            do {
-                memories = try await env.search.search(query: searchText, type: typeFilter, folder: folderFilter, k: 100)
-            } catch {
-                memories = []
+            return
+        }
+        do {
+            if !searchText.isEmpty {
+                var hits = try await env.search.search(query: searchText, type: typeFilter, folder: folderFilter, k: 200)
+                if let day = dayFilter {
+                    let cal = Calendar(identifier: .gregorian)
+                    let start = cal.startOfDay(for: day)
+                    let end = cal.date(byAdding: .day, value: 1, to: start) ?? start
+                    hits = hits.filter { $0.created >= start && $0.created < end }
+                }
+                memories = hits
+            } else {
+                memories = try await env.store.all(type: typeFilter, folder: folderFilter, day: dayFilter, limit: 500)
             }
+        } catch {
+            memories = []
         }
     }
 }
 
-private struct GraphPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶⠶⡶")
-                .monoFont(16)
-                .foregroundStyle(Palette.neonViolet.opacity(0.45))
-            AgentHeader(title: "graph", subtitle: "force-directed layout · v0.5", tint: Palette.neonViolet)
-                .frame(maxWidth: 380)
-            Text("Edges: shared tags + embedding similarity > 0.85")
-                .monoFont(9).foregroundStyle(Palette.textMuted)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
-    }
-}
-
-private struct TimelinePlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿⠶⠿")
-                .monoFont(16)
-                .foregroundStyle(Palette.neonOrange.opacity(0.45))
-            AgentHeader(title: "timeline", subtitle: "contribution heatmap · v0.5", tint: Palette.neonOrange)
-                .frame(maxWidth: 380)
-            Text("Captures per day, visualized.")
-                .monoFont(9).foregroundStyle(Palette.textMuted)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
-    }
-}

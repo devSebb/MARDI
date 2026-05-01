@@ -18,3 +18,6 @@ Package.resolved
 # Secrets
 *.env
 secrets.json
+
+# Claude Code local settings
+.claude/

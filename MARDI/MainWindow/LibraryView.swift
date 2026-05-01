@@ -5,6 +5,7 @@ struct LibraryView: View {
     @EnvironmentObject var env: AppEnvironment
     @Binding var typeFilter: MemoryType?
     @Binding var folderFilter: String?
+    @Binding var dayFilter: Date?
     @Binding var searchText: String
     @Binding var selected: Memory?
     let memories: [Memory]
@@ -12,6 +13,7 @@ struct LibraryView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(typeFilter: $typeFilter, folderFilter: $folderFilter)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 340)
         } content: {
             VStack(spacing: 0) {
                 SearchBar(text: $searchText)
@@ -21,6 +23,12 @@ struct LibraryView: View {
                         Task { await renameFolder(folderFilter) }
                     } onClear: {
                         self.folderFilter = nil
+                    }
+                }
+                if let day = dayFilter {
+                    BrailleDivider(color: Palette.neonCyan.opacity(0.4)).padding(.horizontal, 4)
+                    DayCollectionHeader(day: day, itemCount: memories.count) {
+                        self.dayFilter = nil
                     }
                 }
                 BrailleDivider(color: Palette.border).padding(.horizontal, 4)
@@ -36,28 +44,33 @@ struct LibraryView: View {
                     BrailleField(color: Palette.brailleDim, opacity: 0.25, fontSize: 12, density: 0.2)
                 }
             )
+            .overlay(alignment: .trailing) { ResizeHandleHint() }
+            .navigationSplitViewColumnWidth(min: 320, ideal: 500, max: 700)
         } detail: {
-            if let m = selected {
-                MemoryDetailView(memory: m)
-                    .id(m.id)
-            } else {
-                VStack(spacing: 18) {
-                    MardiFishBrailleView(mood: .idle, size: 180)
-                    SpeechBubbleView(text: env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
-                    HStack(spacing: 5) {
-                        Text("⠿").monoFont(9).foregroundStyle(Palette.neonCyan)
-                        Text(env.recentMemories.isEmpty ? "vault · empty" : "vault · select memory")
-                            .monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+            Group {
+                if let m = selected {
+                    MemoryDetailView(memory: m)
+                        .id(m.id)
+                } else {
+                    VStack(spacing: 18) {
+                        MardiFishBrailleView(mood: .idle, size: 180)
+                        SpeechBubbleView(text: env.recentMemories.isEmpty ? MardiVoice.emptyVault : "Pick something on the left.")
+                        HStack(spacing: 5) {
+                            Text("⠿").monoFont(9).foregroundStyle(Palette.neonCyan)
+                            Text(env.recentMemories.isEmpty ? "vault · empty" : "vault · select memory")
+                                .monoFont(9).tracking(1.5).foregroundStyle(Palette.textMuted)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        ZStack {
+                            Palette.charcoal
+                            BrailleField(color: Palette.brailleDim, opacity: 0.28, fontSize: 14, density: 0.18)
+                        }
+                    )
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(
-                    ZStack {
-                        Palette.charcoal
-                        BrailleField(color: Palette.brailleDim, opacity: 0.28, fontSize: 14, density: 0.18)
-                    }
-                )
             }
+            .navigationSplitViewColumnWidth(min: 360, ideal: 540)
         }
     }
 
@@ -223,6 +236,38 @@ private struct SidebarRow: View {
     }
 }
 
+/// Visual hint glued to the trailing edge of the memory-list column.
+/// NavigationSplitView already makes the boundary draggable; this just makes
+/// the handle discoverable against the dark braille background. A 1px neon
+/// hairline + chunky braille grip glyphs marks the resize seam.
+private struct ResizeHandleHint: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            VStack(spacing: 2) {
+                Spacer()
+                Text("⡇")
+                    .monoFont(11, weight: .bold)
+                    .foregroundStyle(Palette.neonCyan.opacity(0.55))
+                Text("⡇")
+                    .monoFont(11, weight: .bold)
+                    .foregroundStyle(Palette.neonCyan.opacity(0.55))
+                Text("⡇")
+                    .monoFont(11, weight: .bold)
+                    .foregroundStyle(Palette.neonCyan.opacity(0.55))
+                Spacer()
+            }
+            .padding(.trailing, 2)
+            Rectangle()
+                .fill(Palette.neonCyan.opacity(0.35))
+                .frame(width: 1)
+                .shadow(color: Palette.neonCyan.opacity(0.30), radius: 2)
+        }
+        .frame(width: 14)
+        .allowsHitTesting(false)
+    }
+}
+
 private struct SearchBar: View {
     @Binding var text: String
 
@@ -300,6 +345,55 @@ private struct FolderCollectionHeader: View {
         .background(
             LinearGradient(
                 colors: [Palette.neonOrange.opacity(0.14), Palette.panelSlate],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+    }
+}
+
+private struct DayCollectionHeader: View {
+    let day: Date
+    let itemCount: Int
+    var onClear: () -> Void
+
+    private static let longFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d, yyyy"
+        return f
+    }()
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    Text("⠶")
+                        .monoFont(11, weight: .bold)
+                        .foregroundStyle(Palette.neonCyan)
+                    Text(Self.longFmt.string(from: day).uppercased())
+                        .monoFont(12, weight: .bold)
+                        .tracking(1.5)
+                        .foregroundStyle(Palette.textPrimary)
+                }
+                Text("\(itemCount) item\(itemCount == 1 ? "" : "s") · day filter from timeline")
+                    .monoFont(9)
+                    .foregroundStyle(Palette.textMuted)
+            }
+            Spacer()
+            Button(action: onClear) {
+                HStack(spacing: 4) {
+                    Text("⡏⠯").monoFont(9, weight: .bold)
+                    Text("CLEAR").monoFont(9, weight: .bold).tracking(1.2)
+                }
+                .foregroundStyle(Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [Palette.neonCyan.opacity(0.14), Palette.panelSlate],
                 startPoint: .leading,
                 endPoint: .trailing
             )

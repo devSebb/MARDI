@@ -18,7 +18,7 @@ struct QuickSearchView: View {
                 Text("[MARDI::RECALL]")
                     .monoFont(10, weight: .bold)
                     .tracking(2)
-                    .foregroundStyle(Palette.neonCyan)
+                    .foregroundStyle(Palette.textPrimary)
                 Spacer()
                 Text("⌘⇧M · ESC")
                     .monoFont(9, weight: .bold)
@@ -35,8 +35,7 @@ struct QuickSearchView: View {
             HStack(spacing: 12) {
                 Text("⠿")
                     .monoFont(14, weight: .bold)
-                    .foregroundStyle(Palette.neonCyan)
-                    .shadow(color: Palette.neonCyan.opacity(0.4), radius: 2)
+                    .foregroundStyle(Palette.neonMagenta)
                 TextField("", text: $text, prompt: Text("ask mardi…").foregroundStyle(Palette.textMuted))
                     .textFieldStyle(.plain)
                     .monoFont(16)
@@ -88,13 +87,11 @@ struct QuickSearchView: View {
         .background(
             ZStack {
                 Palette.panelSlate
-                BrailleField(color: Palette.brailleDim, opacity: 0.45, fontSize: 11, density: 0.32)
-                Scanlines(opacity: 0.09, spacing: 3)
+                BrailleField(color: Palette.brailleDim, opacity: 0.30, fontSize: 11, density: 0.22)
             }
         )
         .pixelBorder(Palette.neonMagenta, width: 1.5, lit: true, radius: 0)
-        .shadow(color: Palette.neonMagenta.opacity(0.30), radius: 10, y: 5)
-        .shadow(color: Palette.neonCyan.opacity(0.12), radius: 14)
+        .shadow(color: Palette.neonMagenta.opacity(0.30), radius: 8, y: 4)
         .frame(width: 580)
         .colorScheme(.dark)
         .onAppear { focused = true }
@@ -151,7 +148,7 @@ private struct Row: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(memory.title).monoFont(12, weight: .bold)
-                        .foregroundStyle(isSelected ? Palette.neonCyan : Palette.textPrimary)
+                        .foregroundStyle(Palette.textPrimary)
                         .lineLimit(1)
                     if let s = memory.summary {
                         Text(s).bodyFont(10).lineLimit(1).foregroundStyle(Palette.textMuted)
@@ -161,18 +158,17 @@ private struct Row: View {
                 if isSelected {
                     Text("⏎")
                         .monoFont(10, weight: .bold)
-                        .foregroundStyle(Palette.neonCyan)
+                        .foregroundStyle(Palette.neonMagenta)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(isSelected ? Palette.neonCyan.opacity(0.10) : Color.clear)
+            .background(isSelected ? Palette.neonMagenta.opacity(0.10) : Color.clear)
             .overlay(alignment: .leading) {
                 if isSelected {
                     Rectangle()
-                        .fill(Palette.neonCyan)
+                        .fill(Palette.neonMagenta)
                         .frame(width: 2)
-                        .shadow(color: Palette.neonCyan.opacity(0.55), radius: 1.5)
                 }
             }
         }

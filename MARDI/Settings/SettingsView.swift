@@ -171,10 +171,25 @@ struct SettingsView: View {
                             .padding(8)
                             .background(Palette.bubbleBg)
                             .pixelBorder(Palette.border, width: 1)
-                            .disabled(true)
                         Button("CHOOSE…") { chooseVault() }
                             .buttonStyle(.pixel(Palette.neonViolet))
                     }
+                }
+                if settings.vaultPath != env.vault.rootURL.path {
+                    HStack(spacing: 8) {
+                        Text("⡏⠯")
+                            .monoFont(10, weight: .bold)
+                            .foregroundStyle(Palette.neonOrange)
+                        Text("Vault path changed — relaunch to apply.")
+                            .monoFont(10)
+                            .foregroundStyle(Palette.neonOrange)
+                        Spacer()
+                        Button("RELAUNCH") { relaunchApp() }
+                            .buttonStyle(.pixel(Palette.neonOrange, filled: true))
+                    }
+                    .padding(10)
+                    .background(Palette.neonOrange.opacity(0.10))
+                    .pixelBorder(Palette.neonOrange.opacity(0.6), width: 1)
                 }
                 HStack(spacing: 10) {
                     Button("REVEAL IN FINDER") {
@@ -325,9 +340,20 @@ struct SettingsView: View {
         p.canChooseDirectories = true
         p.canChooseFiles = false
         p.allowsMultipleSelection = false
+        p.canCreateDirectories = true
+        p.message = "Pick a folder for your MARDI vault. Markdown memories will be written here."
         if p.runModal() == .OK, let url = p.url {
             settings.vaultPath = url.path
         }
+    }
+
+    private func relaunchApp() {
+        let url = Bundle.main.bundleURL
+        let task = Process()
+        task.launchPath = "/usr/bin/open"
+        task.arguments = ["-n", url.path]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 
     private func test() async {

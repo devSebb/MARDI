@@ -22,24 +22,32 @@ enum Palette {
     static let textSecondary = Color(hex: 0xB7B3AA)
     static let textMuted = Color(hex: 0x6B6860)
 
-    // Neon accents — the core of the fishbowl palette.
-    static let neonCyan = Color(hex: 0x3EF0FF)         // primary / success / "water"
-    static let neonCyanDim = Color(hex: 0x0A98B8)
-    static let neonMagenta = Color(hex: 0xFF2ECC)      // selection / "rim light"
+    // Neon accents — disciplined. Magenta is THE accent; red is errors only.
+    // Cyan / orange / violet exist for the fishbowl character + targeted call-sites
+    // (graph edges, mood states) but are demoted everywhere else to bone tints
+    // via the muted aliases below.
+    static let neonMagenta = Color(hex: 0xFF2ECC)      // the one accent — selection, focus, brand, primary CTA
     static let neonMagentaDim = Color(hex: 0xB0208A)
-    static let neonOrange = Color(hex: 0xFF7A18)       // warning / "fish"
-    static let neonOrangeDim = Color(hex: 0xB54A0A)
-    static let neonRed = Color(hex: 0xFF3355)          // error / destructive
-    static let neonViolet = Color(hex: 0xB37BFF)       // info / secondary accent
+    static let neonRed = Color(hex: 0xFF3355)          // errors only — never decorative
+
+    // Reserved-use neons. Do NOT use for chrome. Reserved for: the fishbowl
+    // character, graph edges, mood-driven character cues, and explicit Phase-5
+    // overrides. Default chrome should pull from the bone hierarchy instead.
+    static let neonCyan = Color(hex: 0x3EF0FF)
+    static let neonOrange = Color(hex: 0xFF7A18)
+    static let neonViolet = Color(hex: 0xB37BFF)
     static let neonGold = Color(hex: 0xFFB63D)
 
     // Legacy semantic aliases — these map existing call-sites onto the new palette.
-    // Do not remove: LibraryView, MonsterView, SettingsView, etc. all reference these.
-    static let phosphor = neonCyan
-    static let phosphorDim = neonCyanDim
-    static let amber = neonOrange
+    // The Hermes-pass demotes cyan/amber/sky to the bone hierarchy so any view
+    // still naming them by their old semantic role gets a calm monochrome look
+    // without an explicit edit. Magenta + red stay loud; violet stays for graph
+    // strong-edges only.
+    static let phosphor = textSecondary       // was neonCyan — demoted to bone
+    static let phosphorDim = textMuted
+    static let amber = textSecondary          // was neonOrange — demoted to bone
     static let magenta = neonMagenta
-    static let sky = neonViolet
+    static let sky = textSecondary            // was neonViolet — demoted to bone
     static let rust = neonRed
 
     // Landing-page token aliases used by the second theme pass.
@@ -54,10 +62,10 @@ enum Palette {
     static let ruleHi = borderBright
     static let pink = neonMagenta
     static let pinkDim = neonMagentaDim
-    static let cyan = neonCyan
-    static let violet = neonViolet
+    static let cyan = textSecondary           // demoted alongside neonCyan
+    static let violet = textSecondary         // demoted alongside neonViolet
     static let gold = neonGold
-    static let orange = neonOrange
+    static let orange = textSecondary         // demoted alongside neonOrange
     static let red = neonRed
 }
 
@@ -71,16 +79,11 @@ extension Color {
 }
 
 extension MemoryType {
+    /// Type accent. Hermes-pass: every type returns the same bone tint — the
+    /// glyph + 3-letter shortcode already encodes the type, so color was only
+    /// ever decorative. Selection state (`isActive`/selected row) is what
+    /// pulls magenta, not the type itself.
     var accent: Color {
-        switch self {
-        case .url: Palette.neonViolet
-        case .snippet: Palette.neonCyan
-        case .ssh: Palette.neonOrange
-        case .prompt: Palette.neonMagenta
-        case .signature: Palette.neonViolet
-        case .reply: Palette.neonCyan
-        case .note: Palette.textPrimary
-        case .select: Palette.neonMagenta
-        }
+        Palette.textSecondary
     }
 }

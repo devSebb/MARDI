@@ -129,30 +129,88 @@ actor MemoryStore {
 
     // MARK: - Read
 
-    func all(type: MemoryType? = nil, folder: String? = nil, limit: Int = 500) async throws -> [Memory] {
-        let rows: [[String: any Sendable]]
-        if let t = type, let folder, !folder.isEmpty {
-            rows = try await db.query(
-                "\(Self.memorySelect) WHERE type = ? AND folder = ? ORDER BY created DESC LIMIT ?;",
-                params: [t.rawValue, folder, limit]
-            )
-        } else if let t = type {
-            rows = try await db.query(
-                "\(Self.memorySelect) WHERE type = ? ORDER BY created DESC LIMIT ?;",
-                params: [t.rawValue, limit]
-            )
-        } else if let folder, !folder.isEmpty {
-            rows = try await db.query(
-                "\(Self.memorySelect) WHERE folder = ? ORDER BY created DESC LIMIT ?;",
-                params: [folder, limit]
-            )
-        } else {
-            rows = try await db.query(
-                "\(Self.memorySelect) ORDER BY created DESC LIMIT ?;",
-                params: [limit]
-            )
+    func all(type: MemoryType? = nil, folder: String? = nil, day: Date? = nil, limit: Int = 500) async throws -> [Memory] {
+        var clauses: [String] = []
+        var params: [any Sendable] = []
+        if let t = type {
+            clauses.append("type = ?")
+            params.append(t.rawValue)
         }
+        if let folder, !folder.isEmpty {
+            clauses.append("folder = ?")
+            params.append(folder)
+        }
+        if let day {
+            let cal = Calendar(identifier: .gregorian)
+            let start = cal.startOfDay(for: day)
+            let end = cal.date(byAdding: .day, value: 1, to: start) ?? start
+            clauses.append("created >= ? AND created < ?")
+            params.append(Int(start.timeIntervalSince1970))
+            params.append(Int(end.timeIntervalSince1970))
+        }
+        let whereClause = clauses.isEmpty ? "" : "WHERE \(clauses.joined(separator: " AND "))"
+        params.append(limit)
+        let sql = "\(Self.memorySelect) \(whereClause) ORDER BY created DESC LIMIT ?;"
+        let rows = try await db.query(sql, params: params)
         return rows.compactMap(Self.memoryFromRow)
+    }
+
+    /// Day-bucketed capture counts, keyed by `Calendar.startOfDay(for:)` Date.
+    /// One row per day with at least one capture.
+    func countsByDay() async throws -> [Date: Int] {
+        let rows = try await db.query("SELECT created FROM memories;")
+        let cal = Calendar(identifier: .gregorian)
+        var out: [Date: Int] = [:]
+        for row in rows {
+            let raw: Int64 = (row["created"] as? Int64) ?? Int64((row["created"] as? Int) ?? 0)
+            guard raw > 0 else { continue }
+            let date: Date
+            if raw > 10_000_000_000 {
+                date = Date(timeIntervalSince1970: TimeInterval(raw) / 1000.0)
+            } else {
+                date = Date(timeIntervalSince1970: TimeInterval(raw))
+            }
+            let day = cal.startOfDay(for: date)
+            out[day, default: 0] += 1
+        }
+        return out
+    }
+
+    /// Lightweight rows for the graph: id, title, type, tags, embedding.
+    /// Skips body/summary/etc to keep memory pressure low. Capped at `limit`
+    /// because all-pairs cosine is O(n²) in Swift.
+    func allForGraph(limit: Int = 600) async throws -> [GraphNodeRow] {
+        let rows = try await db.query(
+            """
+            SELECT id, type, COALESCE(title, '') AS title, COALESCE(tags, '[]') AS tags, embedding
+            FROM memories
+            WHERE embedding IS NOT NULL
+            ORDER BY created DESC
+            LIMIT ?;
+            """,
+            params: [limit]
+        )
+        var out: [GraphNodeRow] = []
+        out.reserveCapacity(rows.count)
+        for row in rows {
+            guard
+                let id = row["id"] as? String,
+                let typeStr = row["type"] as? String,
+                let type = MemoryType(rawValue: typeStr),
+                let title = row["title"] as? String,
+                let blob = row["embedding"] as? Data
+            else { continue }
+            let tagsJSON = row["tags"] as? String ?? "[]"
+            let tags = (try? JSONDecoder().decode([String].self, from: Data(tagsJSON.utf8))) ?? []
+            out.append(GraphNodeRow(
+                id: id,
+                title: title,
+                type: type,
+                tags: tags,
+                embedding: Self.decode(blob)
+            ))
+        }
+        return out
     }
 
     func get(id: String) async throws -> Memory? {

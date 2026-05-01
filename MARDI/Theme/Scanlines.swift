@@ -4,13 +4,18 @@ import SwiftUI
 /// Draws alternating 1px lines in near-black, leaving the base surface showing.
 /// Keep opacity low (≤ 0.14) so it reads as texture, not a pattern.
 struct Scanlines: View {
-    var opacity: Double = 0.10
+    var opacity: Double = 0.05
     var spacing: CGFloat = 2
 
+    /// Hermes-pass cap. Scanlines are texture, not pattern — anything above
+    /// 0.06 reads as a visible stripe and breaks readability.
+    private static let opacityCap: Double = 0.06
+
     var body: some View {
-        GeometryReader { geo in
+        let effOpacity = min(opacity, Self.opacityCap)
+        return GeometryReader { geo in
             Canvas { context, size in
-                let color = Color.black.opacity(opacity)
+                let color = Color.black.opacity(effOpacity)
                 var y: CGFloat = 0
                 while y < size.height {
                     let rect = CGRect(x: 0, y: y, width: size.width, height: 1)
@@ -26,15 +31,22 @@ struct Scanlines: View {
 
 /// Neon glow — multi-layered shadow that feels like a bloom halo.
 /// Used on interactive chrome (focused inputs, active buttons, character).
+/// Multi-layered bloom halo. Hermes-pass: reserved for the fishbowl character
+/// and explicit accent moments. Becomes a no-op below `radius < 3` so legacy
+/// chrome glow call-sites silently flatten instead of producing tiny halos.
 struct NeonGlow: ViewModifier {
-    var color: Color = Palette.neonCyan
+    var color: Color = Palette.neonMagenta
     var radius: CGFloat = 5
     var intensity: Double = 0.45
 
     func body(content: Content) -> some View {
-        content
-            .shadow(color: color.opacity(intensity), radius: radius * 0.4)
-            .shadow(color: color.opacity(intensity * 0.55), radius: radius)
+        if radius < 3 {
+            content
+        } else {
+            content
+                .shadow(color: color.opacity(intensity), radius: radius * 0.4)
+                .shadow(color: color.opacity(intensity * 0.55), radius: radius)
+        }
     }
 }
 
